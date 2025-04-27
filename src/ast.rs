@@ -1,6 +1,6 @@
 pub mod node;
-pub mod source;
 mod pretty_print;
+pub mod source;
 #[cfg(test)]
 mod tests;
 pub mod utils;
