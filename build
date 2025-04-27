@@ -1,0 +1,28 @@
+#!/usr/bin/env nu
+
+def "main test" [] {
+  cargo test --no-fail-fast --lib
+}
+
+def "main lexer" [path: path] {
+  cargo run --bin tokens-inspect -- $path
+}
+
+def "main run" [path: path] {
+  cargo run --bin main -- $path
+}
+
+def "main ast" [path: path] {
+  cargo run --bin ast-inspect -- $path
+}
+
+def "main to-js" [path: path] {
+  cargo run --bin to-js -- $path
+}
+
+def "main inspect" [path: path] {
+  cargo run --bin inspect -- $path
+}
+
+def "main" [] {
+}
