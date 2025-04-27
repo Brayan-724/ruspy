@@ -36,18 +36,27 @@ impl<'i> SourceLexer<&'i str> {
         }
     }
 
-    /// Get span of previous token
+    /// Get span of current token.
+    /// Or previous if is newline
     pub fn span(&self) -> Span {
-        let (line, col) = if self.col == 0 {
-            (self.line.saturating_sub(1), self.last_col)
-        } else {
-            (self.line, unsafe { self.col.unchecked_sub(1) })
-        };
+        if &self.base[self.offset..self.base.len().min(self.offset + 1)] == "\n" {
+            let (line, col) = if self.col == 0 {
+                (self.line.saturating_sub(1), self.last_col)
+            } else {
+                (self.line, unsafe { self.col.unchecked_sub(1) })
+            };
 
-        Span {
-            line,
-            col,
-            offset: self.offset.saturating_sub(1),
+            Span {
+                line,
+                col,
+                offset: self.offset.saturating_sub(1),
+            }
+        } else {
+            Span {
+                line: self.line,
+                col: self.col,
+                offset: self.offset,
+            }
         }
     }
 
@@ -276,8 +285,7 @@ impl fmt::Display for LexerError {
 
         writeln!(f, "backtrace:")?;
         while let Some(line) = backtrace.next() {
-            let Some(colon_idx) = line.find(':')
-            else {
+            let Some(colon_idx) = line.find(':') else {
                 break;
             };
 
@@ -291,7 +299,7 @@ impl fmt::Display for LexerError {
             }
 
             let Some(at_idx) = file_line.find("at ") else {
-                break
+                break;
             };
 
             let file = &file_line[at_idx + 3..];
