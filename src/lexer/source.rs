@@ -65,7 +65,7 @@ impl<'i> SourceLexer<&'i str> {
             .bytes()
             .enumerate()
             .fold(0, |prev, (idx, c)| {
-                (c == b'\n').then_some(idx).unwrap_or(prev)
+                (c == b'\n').then_some(idx + 1).unwrap_or(prev)
             });
 
         let end_line = self.base[start_line..]
