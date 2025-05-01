@@ -20,7 +20,7 @@ fn main() {
 
     println!(" -- AST --");
 
-    let tree = AstScope::from_tokens(tokens);
+    let tree = AstScope::from_tokens(&file_content, tokens);
 
     println!("{tree:#?}");
 

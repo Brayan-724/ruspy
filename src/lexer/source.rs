@@ -5,6 +5,8 @@ use std::ops;
 use winnow::error::{AddContext, ParserError};
 use winnow::stream::{AsChar, FindSlice, Offset, Stream, StreamIsPartial};
 
+use crate::common::error::{ctx_line, raise_span};
+
 use super::span::{Span, SpanRange};
 
 #[derive(Debug, Clone)]
@@ -60,40 +62,9 @@ impl<'i> SourceLexer<&'i str> {
         }
     }
 
-    pub fn ctx_line_offset(&self, offset: usize) -> String {
-        let start_line = self.base[..offset]
-            .bytes()
-            .enumerate()
-            .fold(0, |prev, (idx, c)| {
-                (c == b'\n').then_some(idx + 1).unwrap_or(prev)
-            });
-
-        let end_line = self.base[start_line..]
-            .bytes()
-            .position(|c| (c == b'\n'))
-            .map(|offset| offset + start_line)
-            .unwrap_or(self.base.len());
-
-        self.base[start_line..end_line].to_owned()
-    }
-
     pub fn error(&self, msg: impl fmt::Display) -> ! {
         let span = self.span();
-
-        let ctx = self.ctx_line_offset(span.offset);
-
-        let line_align = span.line.to_string().len();
-
-        let cursor_offset = " ".repeat(span.col);
-
-        println!("\x1b[31merror: \x1b[1m{msg}\x1b[0m");
-        println!("\x1b[36m {} \x1b[34m| \x1b[0m{ctx}", span.line);
-        println!(
-            "\x1b[36m {:<line_align$} \x1b[34m| \x1b[31m{cursor_offset}^",
-            ""
-        );
-
-        std::process::exit(1)
+        raise_span(self.base, span, msg)
     }
 }
 
@@ -246,7 +217,7 @@ impl<'i, C: ToString> AddContext<SourceLexer<&'i str>, C> for LexerError {
         let span = self.span.range_to(input.span());
         labels.push((
             span,
-            input.ctx_line_offset(span.from.offset),
+            ctx_line(&input.base, span.from.offset).to_owned(),
             context.to_string(),
         ));
 

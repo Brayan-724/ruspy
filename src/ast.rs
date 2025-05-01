@@ -8,40 +8,25 @@ pub mod utils;
 use std::collections::VecDeque;
 
 use node::{AstBinaryOp, AstExpr, AstScope, AstStatement, AstUnaryOp};
+use source::SourceAst;
 
 use crate::lexer::token::{SpannedToken, Token};
 use crate::{T, kw, scope};
 
 impl AstScope {
-    pub fn from_tokens(mut tokens: VecDeque<SpannedToken>) -> AstScope {
-        Self::parse_scope(&mut tokens, 0)
+    pub fn from_tokens(base: &str, tokens: VecDeque<SpannedToken>) -> AstScope {
+        Self::parse_scope(&mut SourceAst::new(base, tokens), 0)
     }
 
-    fn expect(tokens: &mut VecDeque<SpannedToken>) -> SpannedToken {
-        tokens
-            .pop_front()
-            .unwrap_or_else(|| panic!("Unexpected token: EOF"))
-    }
-
-    fn expect_token(tokens: &mut VecDeque<SpannedToken>, token: Token) {
-        if let Some(first) = tokens.pop_front() {
-            if first != token {
-                panic!("Unexpected token: {first:?}. Expected: {token:#?}")
-            }
-        } else {
-            panic!("Unexpected token: EOF. Expected: {token:#?}")
-        }
-    }
-
-    fn parse_scope(tokens: &mut VecDeque<SpannedToken>, level: usize) -> AstScope {
+    fn parse_scope(source: &mut SourceAst<'_>, level: usize) -> AstScope {
         let mut nodes = Vec::new();
 
         loop {
-            if !Self::parse_pre_statement(tokens, level) {
+            if !Self::parse_pre_statement(source, level) {
                 break;
             }
 
-            let stmt = Self::parse_statement(tokens, level);
+            let stmt = Self::parse_statement(source, level);
 
             nodes.push(stmt);
         }
@@ -49,82 +34,89 @@ impl AstScope {
         AstScope(nodes)
     }
 
+    fn eat_indent(source: &mut SourceAst<'_>, level: usize) -> Option<bool> {
+        for _ in 0..level {
+            let tk = source.peek()?;
+
+            match *tk.token {
+                T![Indentation] => continue,
+                // Next line
+                T![Newline] => return Some(true),
+                // Exit from scope
+                _ => {
+                    tk.recover();
+                    return None;
+                }
+            }
+        }
+
+        Some(false)
+    }
+
     /// Prepare for statement. Returns false if there're no relevant tokens at same level
-    fn parse_pre_statement(tokens: &mut VecDeque<SpannedToken>, level: usize) -> bool {
-        let Some(first) = tokens.pop_front() else {
+    fn parse_pre_statement(source: &mut SourceAst<'_>, level: usize) -> bool {
+        let Some(first) = source.peek() else {
             return false;
         };
-        let is_ln = first == T![Newline];
 
-        if !is_ln {
-            tokens.push_front(first);
+        if *first != T![Newline] {
+            first.recover();
             return true;
         }
 
-        'next_line: loop {
+        loop {
             if level != 0 {
-                for _ in 0..level {
-                    match tokens.pop_front() {
-                        Some(SpannedToken {
-                            token: T![Newline], ..
-                        }) => continue 'next_line,
-                        Some(SpannedToken {
-                            token: T![Indentation],
-                            ..
-                        }) => {}
-                        // Exit from scope
-                        Some(tk) => {
-                            tokens.push_front(tk);
-                            return false;
-                        }
-                        None => return false,
-                    }
+                match Self::eat_indent(source, level) {
+                    Some(false) => {},
+                    // Next line
+                    Some(true) => continue,
+                    None => break false,
                 }
             }
 
-            let Some(first) = tokens.pop_front() else {
-                return false;
+            let Some(first) = source.peek() else {
+                break false;
             };
 
-            if first == T![Newline] {
+            if *first == T![Newline] {
                 continue;
             }
 
-            tokens.push_front(first);
-            return true;
+            first.recover();
+            break true;
         }
     }
 
-    fn parse_statement(tokens: &mut VecDeque<SpannedToken>, level: usize) -> AstStatement {
-        let first = unsafe { tokens.pop_front().unwrap_unchecked() };
+    fn parse_statement(source: &mut SourceAst<'_>, level: usize) -> AstStatement {
+        let first = source.peek_expect();
 
-        let (first_span, first) = first.parts();
-        let stmt = match first {
-            Token::Ident(var) => {
-                let token = Self::expect(tokens);
+        let stmt = match **first {
+            Token::Ident(_) => {
+                let token = first.source.peek_expect();
 
-                if let T![Equal] = token.token {
-                    AstStatement::VariableDeclaration(var, Box::new(Self::parse_expr(tokens)))
+                if let T![Equal] = *token.token {
+                    let var = first
+                        .accept()
+                        .token
+                        .into_ident()
+                        .expect("Already checked above");
+                    AstStatement::VariableDeclaration(var, Box::new(Self::parse_expr(source)))
                 } else {
-                    tokens.push_front(token);
-                    tokens.push_front(SpannedToken::new(first_span, Token::Ident(var)));
+                    token.recover();
+                    first.recover();
 
-                    AstStatement::Expresion(Box::new(Self::parse_expr(tokens)))
+                    AstStatement::Expresion(Box::new(Self::parse_expr(source)))
                 }
             }
             kw!(Global) => {
                 let mut vars = Vec::new();
 
                 loop {
-                    let token = tokens.pop_front().expect("Unexpected eof");
+                    let token = source.expect_match("Ident", |t| t.token.into_ident());
 
-                    if let Token::Ident(ident) = token.token {
-                        vars.push(ident)
-                    } else {
-                        panic!("Unexpected token: {token:?}. Expected ident")
-                    }
+                    vars.push(token);
 
-                    let token = tokens.pop_front();
+                    let token = source.tokens.pop_front();
 
                     match token {
                         None
@@ -134,57 +126,58 @@ impl AstScope {
                         Some(SpannedToken {
                             token: T![Comma], ..
                         }) => continue,
-                        _ => panic!("Unexpected token: {token:?}. Expected ','"),
+                        Some(token) => source.error_at(
+                            token.span,
+                            format!("Unexpected token: {:?}. Expected ','", token.token),
+                        ),
                     }
                 }
 
                 AstStatement::Global(vars)
             }
-            kw!(If) => Self::parse_stmt_if(tokens, level),
+            kw!(If) => Self::parse_stmt_if(source, level),
             Token::Literal(_) => {
-                tokens.push_front(SpannedToken::new(first_span, first));
-                AstStatement::Expresion(Box::new(Self::parse_expr(tokens)))
+                first.recover();
+                AstStatement::Expresion(Box::new(Self::parse_expr(source)))
             }
             T![Bang] => {
-                tokens.push_front(SpannedToken::new(first_span, first));
-                AstStatement::Expresion(Box::new(Self::parse_expr(tokens)))
+                first.recover();
+                AstStatement::Expresion(Box::new(Self::parse_expr(source)))
             }
 
-            _ => panic!("Unexpected token: {first:?}."),
+            _ => {
+                let first = first.accept();
+                source.error_at(first.span, format!("Unexpected token: {:?}.", first.token))
+            }
         };
 
         stmt
     }
 
-    fn parse_stmt_if(tokens: &mut VecDeque<SpannedToken>, level: usize) -> AstStatement {
-        let test = Self::parse_expr(tokens).into();
-        Self::expect_token(tokens, T![Colon]);
+    fn parse_stmt_if(source: &mut SourceAst<'_>, level: usize) -> AstStatement {
+        let test = Self::parse_expr(source).into();
 
-        let body = Self::parse_scope(tokens, level + 1);
+        source.expect_token(T![Colon]);
 
-        let mut peek_tokens = tokens.clone();
+        let body = Self::parse_scope(source, level + 1);
 
-        let otherwise = if Self::parse_pre_statement(&mut peek_tokens, level) {
-            if let Some(keyword) = peek_tokens.pop_front() {
-                match keyword.token {
-                    kw!(Else) => {
-                        *tokens = peek_tokens;
-                        Self::expect_token(tokens, T!(Colon));
+        let mut peek_source = source.clone();
 
-                        Some(Self::parse_scope(tokens, level + 1))
-                    }
-                    kw!(Elif) => {
-                        *tokens = peek_tokens;
-                        Some(scope![Self::parse_stmt_if(tokens, level)])
-                    }
-                    _ => None,
+        let otherwise = Self::parse_pre_statement(&mut peek_source, level)
+            .then(|| peek_source.tokens.pop_front())
+            .flatten()
+            .map(|keyword| match keyword.token {
+                kw!(Else) => {
+                    peek_source.expect_token(T![Colon]);
+
+                    Some(Self::parse_scope(&mut peek_source, level + 1))
                 }
-            } else {
-                None
-            }
-        } else {
-            None
-        };
+                kw!(Elif) => Some(scope![Self::parse_stmt_if(&mut peek_source, level)]),
+                _ => None,
+            })
+            // Update global source state if found something
+            .inspect(|_| *source = peek_source)
+            .flatten();
 
         AstStatement::Conditional {
             test,
@@ -193,32 +186,37 @@ impl AstScope {
         }
     }
 
-    fn parse_expr(tokens: &mut VecDeque<SpannedToken>) -> AstExpr {
-        fn expr_base(tokens: &mut VecDeque<SpannedToken>) -> AstExpr {
-            let first = tokens.pop_front().expect("Unexpected eof");
+    fn parse_expr(source: &mut SourceAst<'_>) -> AstExpr {
+        fn expr_base(source: &mut SourceAst<'_>) -> AstExpr {
+            let first = source.expect();
 
             match first.token {
                 Token::Ident(ident) => AstExpr::Ident(ident),
                 Token::Literal(lit) => AstExpr::Literal(lit),
                 T![Bang] => AstExpr::UnaryOp {
                     op: AstUnaryOp::Not,
-                    right: expr_base(tokens).into(),
+                    right: expr_base(source).into(),
                 },
-                _ => panic!("Unexpected token: {first:?}. Expected expression."),
+                _ => source.error_at(
+                    first.span,
+                    format!("Unexpected token: {:?}. Expected expression.", first.token),
+                ),
             }
         }
 
-        fn bin_op_mul_div(left_tokens: &mut VecDeque<SpannedToken>) -> AstExpr {
-            let Some(mut tokens) = left_tokens
+        fn bin_op_mul_div(left_source: &mut SourceAst<'_>) -> AstExpr {
+            let Some(mut tokens) = left_source
+                .tokens
                 .iter()
                 .take_while(|t| **t != T![Newline])
                 .position(|t| *t == T![Star] || *t == T![Slash])
-                .map(|idx| left_tokens.split_off(idx + 1))
+                .map(|idx| left_source.tokens.split_off(idx + 1))
+                .map(|tokens| left_source.with(tokens))
             else {
-                return expr_base(left_tokens);
+                return expr_base(left_source);
             };
 
-            let op = left_tokens.pop_back().expect("At least have one token");
+            let op = left_source.expect();
 
             let op = match op.token {
                 T![Star] => AstBinaryOp::Mul,
@@ -228,22 +226,24 @@ impl AstScope {
 
             AstExpr::BinaryOp {
                 op,
-                left: expr_base(left_tokens).into(),
+                left: expr_base(left_source).into(),
                 right: bin_op_mul_div(&mut tokens).into(),
             }
         }
 
-        fn bin_op_add_sub(left_tokens: &mut VecDeque<SpannedToken>) -> AstExpr {
-            let Some(mut tokens) = left_tokens
+        fn bin_op_add_sub(left_source: &mut SourceAst<'_>) -> AstExpr {
+            let Some(mut tokens) = left_source
+                .tokens
                 .iter()
                 .take_while(|t| **t != T![Newline])
                 .position(|t| *t == T![Add] || *t == T![Minus])
-                .map(|idx| left_tokens.split_off(idx + 1))
+                .map(|idx| left_source.tokens.split_off(idx + 1))
+                .map(|tokens| left_source.with(tokens))
             else {
-                return bin_op_mul_div(left_tokens);
+                return bin_op_mul_div(left_source);
             };
 
-            let op = left_tokens.pop_back().expect("At least have one token");
+            let op = left_source.expect();
 
             let op = match op.token {
                 T![Add] => AstBinaryOp::Add,
@@ -253,11 +253,11 @@ impl AstScope {
 
             AstExpr::BinaryOp {
                 op,
-                left: bin_op_mul_div(left_tokens).into(),
+                left: bin_op_mul_div(left_source).into(),
                 right: bin_op_add_sub(&mut tokens).into(),
             }
         }
 
-        bin_op_add_sub(tokens)
+        bin_op_add_sub(source)
     }
 }

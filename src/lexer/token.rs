@@ -1,4 +1,5 @@
 use core::fmt;
+use std::ops;
 
 use super::span::SpanRange;
 
@@ -69,6 +70,16 @@ pub enum TokenPunctuation {
     Star,
 }
 
+impl Token {
+    pub fn into_ident(self) -> Option<String> {
+        if let Self::Ident(ident) = self {
+            Some(ident)
+        } else {
+            None
+        }
+    }
+}
+
 impl SpannedToken {
     pub fn new(span: SpanRange, token: Token) -> Self {
         Self { span, token }
@@ -76,6 +87,14 @@ impl SpannedToken {
 
     pub fn parts(self) -> (SpanRange, Token) {
         (self.span, self.token)
+    }
+}
+
+impl ops::Deref for SpannedToken {
+    type Target = Token;
+
+    fn deref(&self) -> &Self::Target {
+        &self.token
     }
 }
 
