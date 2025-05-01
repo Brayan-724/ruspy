@@ -1,11 +1,11 @@
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct Span {
     pub line: usize,
     pub col: usize,
     pub offset: usize,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct SpanRange {
     pub from: Span,
     pub to: Span,

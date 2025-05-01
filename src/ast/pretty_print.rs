@@ -1,6 +1,5 @@
 use core::fmt;
 
-use crate::lexer::token::TokenLiteral;
 use crate::pretty_print::*;
 
 use super::node::{AstExpr, AstScope, AstStatement};
@@ -62,19 +61,6 @@ impl fmt::Display for AstExpr {
             AstExpr::UnaryOp { op, right } => {
                 f.write_fmt(format_args!("{PUNCTUATION}{op}{R} {right}"))?
             }
-        }
-
-        Ok(())
-    }
-}
-
-impl fmt::Display for TokenLiteral {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            TokenLiteral::Bool(true) => f.write_fmt(format_args!("{LITERAL}True{R}"))?,
-            TokenLiteral::Bool(false) => f.write_fmt(format_args!("{LITERAL}False{R}"))?,
-            TokenLiteral::Number(n) => f.write_fmt(format_args!("{LITERAL}{n}{R}"))?,
-            TokenLiteral::String(s) => f.write_fmt(format_args!("{STRING}{s:?}{R}"))?,
         }
 
         Ok(())

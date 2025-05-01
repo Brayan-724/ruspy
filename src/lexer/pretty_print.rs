@@ -1,12 +1,33 @@
 use core::fmt;
+use std::collections::VecDeque;
 use std::fmt::Write;
 
 use crate::pretty_print::*;
 
+use super::Lexer;
 use super::span::{Span, SpanRange};
-use super::token::{Token, TokenKeyword, TokenLiteral, TokenPunctuation};
+use super::token::{SpannedToken, Token, TokenKeyword, TokenLiteral, TokenPunctuation};
 
-impl fmt::Debug for Span {
+impl Lexer {
+    pub fn pretty_print(tokens: &VecDeque<SpannedToken>) {
+        println!("LIN:COL LIN:COL KIND        RENDER");
+        tokens.iter().for_each(|token| println!("{token}"));
+    }
+}
+
+impl fmt::Debug for SpannedToken {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        fmt::Debug::fmt(&self.token, f)
+    }
+}
+
+impl fmt::Display for SpannedToken {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!("({:#}) {}", self.span, self.token))
+    }
+}
+
+impl fmt::Display for Span {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if f.alternate() {
             f.write_fmt(format_args!(
@@ -19,12 +40,12 @@ impl fmt::Debug for Span {
     }
 }
 
-impl fmt::Debug for SpanRange {
+impl fmt::Display for SpanRange {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if f.alternate() {
-            f.write_fmt(format_args!("{:#?} ..{:#?}", self.from, self.to))
+            f.write_fmt(format_args!("{:#} ..{:#}", self.from, self.to))
         } else {
-            f.write_fmt(format_args!("({:?})..({:?})", self.from, self.to))
+            f.write_fmt(format_args!("({:})..({:})", self.from, self.to))
         }
     }
 }
@@ -32,9 +53,22 @@ impl fmt::Debug for SpanRange {
 impl fmt::Debug for Token {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Token::Ident(ident) => f.write_fmt(format_args!("Ident({ident})"))?,
+            Token::Keyword(kw) => f.write_fmt(format_args!("{kw:?}"))?,
+            Token::Literal(lit) => f.write_fmt(format_args!("{lit:?}"))?,
+            Token::Punctuation(punctuation) => f.write_fmt(format_args!("{punctuation:?}"))?,
+        }
+
+        Ok(())
+    }
+}
+
+impl fmt::Display for Token {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
             Token::Ident(ident) => f.write_fmt(format_args!("{VARIABLE}Ident       {ident}{R}"))?,
-            Token::Keyword(kw) => f.write_fmt(format_args!("{KEYWORD}Keyword     {kw:?}"))?,
-            Token::Literal(lit) => f.write_fmt(format_args!("{LITERAL}Literal     {lit:?}"))?,
+            Token::Keyword(kw) => f.write_fmt(format_args!("{KEYWORD}Keyword     {kw:}"))?,
+            Token::Literal(lit) => f.write_fmt(format_args!("{LITERAL}Literal     {lit:}"))?,
             Token::Punctuation(punctuation) => {
                 f.write_fmt(format_args!("Punctuation {punctuation}"))?
             }
@@ -44,7 +78,7 @@ impl fmt::Debug for Token {
     }
 }
 
-impl fmt::Debug for TokenKeyword {
+impl fmt::Display for TokenKeyword {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(KEYWORD)?;
         match self {
@@ -57,7 +91,7 @@ impl fmt::Debug for TokenKeyword {
     }
 }
 
-impl fmt::Debug for TokenLiteral {
+impl fmt::Display for TokenLiteral {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             TokenLiteral::Bool(true) => f.write_fmt(format_args!("{LITERAL}True"))?,

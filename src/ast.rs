@@ -67,7 +67,7 @@ impl AstScope {
         loop {
             if level != 0 {
                 match Self::eat_indent(source, level) {
-                    Some(false) => {},
+                    Some(false) => {}
                     // Next line
                     Some(true) => continue,
                     None => break false,

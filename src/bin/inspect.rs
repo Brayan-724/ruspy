@@ -15,8 +15,7 @@ fn main() {
 
     let tokens = Lexer::from_str(&mut file_content.as_str()).expect("Cannot parse");
 
-    println!("LIN:COL LIN:COL KIND        RENDER");
-    tokens.iter().for_each(|token| println!("{token:#?}"));
+    Lexer::pretty_print(&tokens);
 
     println!(" -- AST --");
 

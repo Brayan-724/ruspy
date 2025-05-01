@@ -1,4 +1,3 @@
-use core::fmt;
 use std::ops;
 
 use super::span::SpanRange;
@@ -17,7 +16,7 @@ pub enum Token {
     Punctuation(TokenPunctuation),
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum TokenKeyword {
     // Def,
     Elif,
@@ -29,7 +28,7 @@ pub enum TokenKeyword {
     // While,
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum TokenLiteral {
     Bool(bool),
     Number(i64),
@@ -107,11 +106,5 @@ impl PartialEq for SpannedToken {
 impl PartialEq<Token> for SpannedToken {
     fn eq(&self, other: &Token) -> bool {
         &self.token == other
-    }
-}
-
-impl fmt::Debug for SpannedToken {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("({:#?}) {:?}", self.span, self.token))
     }
 }
