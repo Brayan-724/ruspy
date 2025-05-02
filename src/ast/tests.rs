@@ -1,7 +1,7 @@
 use crate::ast::node::{AstScope, AstStatement};
 use crate::ast::utils::{bin_op, scope};
-use crate::lexer::utils::{ident, literal};
 use crate::lexer::Lexer;
+use crate::lexer::utils::{ident, literal};
 
 fn create_scope(content: &str) -> AstScope {
     AstScope::from_tokens(content, Lexer::from_str(content).unwrap())

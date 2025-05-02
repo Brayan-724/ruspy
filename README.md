@@ -2,14 +2,9 @@
 
 All are available with `./build` (needs nushell)
 
-### ./build test 
+### ./build test \[$test\]
 ```bash
-cargo test --no-fail-fast --lib
-```
-
-### ./build lexer $path
-```bash
-cargo run --bin tokens-inspect -- $path
+cargo test --no-fail-fast --lib --verbose $test -- --nocapture
 ```
 
 ### ./build run $path
@@ -17,17 +12,22 @@ cargo run --bin tokens-inspect -- $path
 cargo run --bin main -- $path
 ```
 
-### ./build ast $path
+### ./build lexer $path
 ```bash
-cargo run --bin ast-inspect -- $path
+cargo run --bin inspect-lexer -- $path
 ```
 
-### ./build to-js $path
+### ./build ast $path
 ```bash
-cargo run --bin to-js -- $path
+cargo run --bin inspect-ast -- $path
 ```
 
 ### ./build inspect $path
 ```bash
 cargo run --bin inspect -- $path
+```
+
+### ./build to-js $path
+```bash
+cargo run --bin to-js -- $path
 ```
