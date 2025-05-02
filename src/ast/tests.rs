@@ -1,22 +1,15 @@
-use std::collections::VecDeque;
-
 use crate::ast::node::{AstScope, AstStatement};
 use crate::ast::utils::{bin_op, scope};
-use crate::lexer::span::Span;
-use crate::lexer::token::{SpannedToken, Token};
-use crate::lexer::utils::{T, ident, kw, literal};
+use crate::lexer::utils::{ident, literal};
+use crate::lexer::Lexer;
 
-fn zero_spanned(input: VecDeque<Token>) -> VecDeque<SpannedToken> {
-    input
-        .into_iter()
-        .map(|token| SpannedToken::new(Span::zeroed().range_to(Span::zeroed()), token))
-        .collect()
+fn create_scope(content: &str) -> AstScope {
+    AstScope::from_tokens(content, Lexer::from_str(content).unwrap())
 }
 
 #[test]
 fn simple() {
-    let input = [ident!(a), T!(Equal), literal!(1)].to_vec();
-    let res = AstScope::from_tokens(zero_spanned(input.into()));
+    let res = create_scope("a = 1");
     assert_eq!(
         res,
         scope![AstStatement::VariableDeclaration(
@@ -28,19 +21,7 @@ fn simple() {
 
 #[test]
 fn expression() {
-    let input = [
-        ident!(a),
-        T!(Add),
-        ident!(b),
-        T!(Star),
-        ident!(c),
-        T!(Minus),
-        ident!(d),
-        T!(Slash),
-        ident!(e),
-    ]
-    .to_vec();
-    let res = AstScope::from_tokens(zero_spanned(input.into()));
+    let res = create_scope("a + b * c - d / e");
     assert_eq!(
         res,
         scope![AstStatement::Expresion(
@@ -60,18 +41,7 @@ fn expression() {
 
 #[test]
 fn conditional() {
-    let input = [
-        kw!(If),
-        literal!(true),
-        T!(Colon),
-        T!(Newline),
-        T!(Indentation),
-        ident!(a),
-        T!(Equal),
-        literal!(1),
-    ]
-    .to_vec();
-    let res = AstScope::from_tokens(zero_spanned(input.into()));
+    let res = create_scope("if True:\n a = 1");
     assert_eq!(
         res,
         scope![AstStatement::Conditional {
@@ -87,16 +57,7 @@ fn conditional() {
 
 #[test]
 fn conditional_inline() {
-    let input = [
-        kw!(If),
-        literal!(true),
-        T!(Colon),
-        ident!(a),
-        T!(Equal),
-        literal!(1),
-    ]
-    .to_vec();
-    let res = AstScope::from_tokens(zero_spanned(input.into()));
+    let res = create_scope("if True: a = 1");
     assert_eq!(
         res,
         scope![AstStatement::Conditional {
@@ -112,15 +73,7 @@ fn conditional_inline() {
 
 #[test]
 fn conditional_else() {
-    #[rustfmt::skip]
-    let input = [
-        kw!(If), literal!(true), T!(Colon), T!(Newline),
-        T!(Indentation), ident!(a), T!(Equal), literal!(1), T!(Newline),
-        kw!(Else), T!(Colon), T!(Newline),
-        T!(Indentation), ident!(a), T!(Equal), literal!(2),
-    ]
-    .to_vec();
-    let res = AstScope::from_tokens(zero_spanned(input.into()));
+    let res = create_scope("if True:\n a = 1\nelse:\n a = 2");
     assert_eq!(
         res,
         scope![AstStatement::Conditional {
