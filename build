@@ -1,7 +1,7 @@
 #!/usr/bin/env nu
 
-def "main test" [] {
-  cargo test --no-fail-fast --lib
+def "main test" [test: string = ""] {
+  cargo test --no-fail-fast --lib --verbose $test -- --nocapture
 }
 
 def "main lexer" [path: path] {
