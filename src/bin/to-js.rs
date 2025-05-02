@@ -14,7 +14,7 @@ fn main() {
 
     let tokens = Lexer::from_str(&mut file_content.as_str()).expect("Cannot parse");
 
-    let tree = AstScope::from_tokens(tokens);
+    let tree = AstScope::from_tokens(&file_content, tokens);
 
     let mut output = String::new();
 
