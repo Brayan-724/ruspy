@@ -15,18 +15,52 @@ use crate::{T, kw, scope};
 
 impl AstScope {
     pub fn from_tokens(base: &str, tokens: VecDeque<SpannedToken>) -> AstScope {
-        Self::parse_scope(&mut SourceAst::new(base, tokens), 0)
+        SourceAst::new(base, tokens).parse_scope(0)
     }
+}
 
-    fn parse_scope(source: &mut SourceAst<'_>, level: usize) -> AstScope {
+macro_rules! fn_bin_op {
+    ($fn:ident, $base:ident; $($tk:ident => $op:ident),+  ) => {
+        fn $fn(&mut self) -> AstExpr {
+            let Some(mut tokens) = self
+                .tokens
+                .iter()
+                .take_while(|t| **t != T![Newline])
+                .position(|t| false $(|| *t == T![$tk])+)
+                .map(|idx| self.tokens.split_off(idx + 1))
+                .map(|tokens| self.with(tokens))
+            else {
+                return self.$base();
+            };
+
+            let op = self.tokens.pop_back().unwrap();
+
+            let left = self.$base().into();
+
+            let op = match *op {
+                $(T![$tk] => AstBinaryOp::$op,)+
+                _ => unreachable!(),
+            };
+
+            AstExpr::BinaryOp {
+                op,
+                left,
+                right: tokens.$fn().into(),
+            }
+        }
+    };
+}
+
+impl<'i> SourceAst<'i> {
+    fn parse_scope(&mut self, level: usize) -> AstScope {
         let mut nodes = Vec::new();
 
         loop {
-            if !Self::parse_pre_statement(source, level) {
+            if !self.parse_pre_statement(level) {
                 break;
             }
 
-            let stmt = Self::parse_statement(source, level);
+            let stmt = self.parse_statement(level);
 
             nodes.push(stmt);
         }
@@ -34,9 +68,9 @@ impl AstScope {
         AstScope(nodes)
     }
 
-    fn eat_indent(source: &mut SourceAst<'_>, level: usize) -> Option<bool> {
+    fn eat_indent(&mut self, level: usize) -> Option<bool> {
         for _ in 0..level {
-            let tk = source.peek()?;
+            let tk = self.peek()?;
 
             match *tk.token {
                 T![Indentation] => continue,
@@ -54,8 +88,8 @@ impl AstScope {
     }
 
     /// Prepare for statement. Returns false if there're no relevant tokens at same level
-    fn parse_pre_statement(source: &mut SourceAst<'_>, level: usize) -> bool {
-        let Some(first) = source.peek() else {
+    fn parse_pre_statement(&mut self, level: usize) -> bool {
+        let Some(first) = self.peek() else {
             return false;
         };
 
@@ -66,7 +100,7 @@ impl AstScope {
 
         loop {
             if level != 0 {
-                match Self::eat_indent(source, level) {
+                match self.eat_indent(level) {
                     Some(false) => {}
                     // Next line
                     Some(true) => continue,
@@ -74,7 +108,7 @@ impl AstScope {
                 }
             }
 
-            let Some(first) = source.peek() else {
+            let Some(first) = self.peek() else {
                 break false;
             };
 
@@ -87,8 +121,8 @@ impl AstScope {
         }
     }
 
-    fn parse_statement(source: &mut SourceAst<'_>, level: usize) -> AstStatement {
-        let first = source.peek_expect();
+    fn parse_statement(&mut self, level: usize) -> AstStatement {
+        let first = self.peek_expect();
 
         let stmt = match **first {
             Token::Ident(_) => {
@@ -100,33 +134,31 @@ impl AstScope {
                         .token
                         .into_ident()
                         .expect("Already checked above");
-                    AstStatement::VariableDeclaration(var, Box::new(Self::parse_expr(source)))
+                    AstStatement::VariableDeclaration(var, self.parse_expr().into())
                 } else {
                     token.recover();
                     first.recover();
 
-                    AstStatement::Expresion(Box::new(Self::parse_expr(source)))
+                    AstStatement::Expresion(self.parse_expr().into())
                 }
             }
+
             kw!(Global) => {
                 let mut vars = Vec::new();
 
                 loop {
-                    let token = source.expect_match("Ident", |t| t.token.into_ident());
+                    let token = self.expect_match("Ident", |t| t.token.into_ident());
 
                     vars.push(token);
 
-                    let token = source.tokens.pop_front();
+                    let Some(token) = self.tokens.pop_front() else {
+                        break
+                    };
 
-                    match token {
-                        None
-                        | Some(SpannedToken {
-                            token: T![Newline], ..
-                        }) => break,
-                        Some(SpannedToken {
-                            token: T![Comma], ..
-                        }) => continue,
-                        Some(token) => source.error_at(
+                    match *token {
+                        T![Newline] => break,
+                        T![Comma] => continue,
+                        _ => self.error_at(
                             token.span,
                             format!("Unexpected token: {:?}. Expected ','", token.token),
                         ),
@@ -135,33 +167,31 @@ impl AstScope {
 
                 AstStatement::Global(vars)
             }
-            kw!(If) => Self::parse_stmt_if(source, level),
-            Token::Literal(_) => {
+
+            kw!(If) => Self::parse_stmt_if(self, level),
+
+            T![Bang] | Token::Literal(_) => {
                 first.recover();
-                AstStatement::Expresion(Box::new(Self::parse_expr(source)))
-            }
-            T![Bang] => {
-                first.recover();
-                AstStatement::Expresion(Box::new(Self::parse_expr(source)))
+                AstStatement::Expresion(self.parse_expr().into())
             }
 
             _ => {
                 let first = first.accept();
-                source.error_at(first.span, format!("Unexpected token: {:?}.", first.token))
+                self.error_at(first.span, format!("Unexpected token: {:?}.", first.token))
             }
         };
 
         stmt
     }
 
-    fn parse_stmt_if(source: &mut SourceAst<'_>, level: usize) -> AstStatement {
-        let test = Self::parse_expr(source).into();
+    fn parse_stmt_if(&mut self, level: usize) -> AstStatement {
+        let test = self.parse_expr().into();
 
-        source.expect_token(T![Colon]);
+        self.expect_token(T![Colon]);
 
-        let body = Self::parse_scope(source, level + 1);
+        let body = Self::parse_scope(self, level + 1);
 
-        let mut peek_source = source.clone();
+        let mut peek_source = self.clone();
 
         let otherwise = Self::parse_pre_statement(&mut peek_source, level)
             .then(|| peek_source.tokens.pop_front())
@@ -176,7 +206,7 @@ impl AstScope {
                 _ => None,
             })
             // Update global source state if found something
-            .inspect(|_| *source = peek_source)
+            .inspect(|_| *self = peek_source)
             .flatten();
 
         AstStatement::Conditional {
@@ -186,78 +216,27 @@ impl AstScope {
         }
     }
 
-    fn parse_expr(source: &mut SourceAst<'_>) -> AstExpr {
-        fn expr_base(source: &mut SourceAst<'_>) -> AstExpr {
-            let first = source.expect();
-
-            match first.token {
-                Token::Ident(ident) => AstExpr::Ident(ident),
-                Token::Literal(lit) => AstExpr::Literal(lit),
-                T![Bang] => AstExpr::UnaryOp {
-                    op: AstUnaryOp::Not,
-                    right: expr_base(source).into(),
-                },
-                _ => source.error_at(
-                    first.span,
-                    format!("Unexpected token: {:?}. Expected expression.", first.token),
-                ),
-            }
-        }
-
-        fn bin_op_mul_div(left_source: &mut SourceAst<'_>) -> AstExpr {
-            let Some(mut tokens) = left_source
-                .tokens
-                .iter()
-                .take_while(|t| **t != T![Newline])
-                .position(|t| *t == T![Star] || *t == T![Slash])
-                .map(|idx| left_source.tokens.split_off(idx + 1))
-                .map(|tokens| left_source.with(tokens))
-            else {
-                return expr_base(left_source);
-            };
-
-            let op = left_source.expect();
-
-            let op = match op.token {
-                T![Star] => AstBinaryOp::Mul,
-                T![Slash] => AstBinaryOp::Div,
-                _ => unreachable!(),
-            };
-
-            AstExpr::BinaryOp {
-                op,
-                left: expr_base(left_source).into(),
-                right: bin_op_mul_div(&mut tokens).into(),
-            }
-        }
-
-        fn bin_op_add_sub(left_source: &mut SourceAst<'_>) -> AstExpr {
-            let Some(mut tokens) = left_source
-                .tokens
-                .iter()
-                .take_while(|t| **t != T![Newline])
-                .position(|t| *t == T![Add] || *t == T![Minus])
-                .map(|idx| left_source.tokens.split_off(idx + 1))
-                .map(|tokens| left_source.with(tokens))
-            else {
-                return bin_op_mul_div(left_source);
-            };
-
-            let op = left_source.expect();
-
-            let op = match op.token {
-                T![Add] => AstBinaryOp::Add,
-                T![Minus] => AstBinaryOp::Sub,
-                _ => unreachable!(),
-            };
-
-            AstExpr::BinaryOp {
-                op,
-                left: bin_op_mul_div(left_source).into(),
-                right: bin_op_add_sub(&mut tokens).into(),
-            }
-        }
-
-        bin_op_add_sub(source)
+    fn parse_expr(&mut self) -> AstExpr {
+        self.parse_expr_bin_2()
     }
+
+    fn parse_expr_base(&mut self) -> AstExpr {
+        let first = self.expect();
+
+        match first.token {
+            Token::Ident(ident) => AstExpr::Ident(ident),
+            Token::Literal(lit) => AstExpr::Literal(lit),
+            T![Bang] => AstExpr::UnaryOp {
+                op: AstUnaryOp::Not,
+                right: self.parse_expr_base().into(),
+            },
+            _ => self.error_at(
+                first.span,
+                format!("Unexpected token: {:?}. Expected expression.", first.token),
+            ),
+        }
+    }
+
+    fn_bin_op!{parse_expr_bin_1, parse_expr_base; Star => Mul, Slash => Div}
+    fn_bin_op!{parse_expr_bin_2, parse_expr_bin_1; Add => Add, Minus => Sub}
 }
