@@ -150,6 +150,7 @@ impl Scope {
                 .0
                 .borrow()
                 .clone(),
+            AstExpr::Literal(TokenLiteral::Nil) => RuntimeValue::Nil,
             AstExpr::Literal(TokenLiteral::Bool(b)) => RuntimeValue::Bool(b),
             AstExpr::Literal(TokenLiteral::Number(n)) => RuntimeValue::Number(n),
             AstExpr::Literal(TokenLiteral::String(s)) => RuntimeValue::String(s),

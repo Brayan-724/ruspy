@@ -30,6 +30,7 @@ pub enum TokenKeyword {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum TokenLiteral {
+    Nil,
     Bool(bool),
     Number(i64),
     String(String),

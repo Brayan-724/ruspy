@@ -94,6 +94,7 @@ impl fmt::Display for TokenKeyword {
 impl fmt::Display for TokenLiteral {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            TokenLiteral::Nil => f.write_fmt(format_args!("{LITERAL}Nil"))?,
             TokenLiteral::Bool(true) => f.write_fmt(format_args!("{LITERAL}True"))?,
             TokenLiteral::Bool(false) => f.write_fmt(format_args!("{LITERAL}False"))?,
             TokenLiteral::Number(n) => f.write_fmt(format_args!("{LITERAL}{n}"))?,

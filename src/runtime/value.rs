@@ -4,8 +4,10 @@ use std::rc::Rc;
 #[derive(Debug, Clone)]
 pub struct RuntimeVariable(pub Rc<RefCell<RuntimeValue>>);
 
-#[derive(Debug, Clone)]
+#[derive(Default, Debug, Clone)]
 pub enum RuntimeValue {
+    #[default]
+    Nil,
     Bool(bool),
     Number(i64),
     String(String),

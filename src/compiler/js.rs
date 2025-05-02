@@ -47,6 +47,7 @@ impl<W: fmt::Write> Compiler<W> for JsCompiler {
 
     fn visit_literal(&mut self, buf: &mut W, literal: TokenLiteral) -> fmt::Result {
         match literal {
+            TokenLiteral::Nil => buf.write_str("nil"),
             TokenLiteral::Bool(true) => buf.write_str("true"),
             TokenLiteral::Bool(false) => buf.write_str("false"),
             TokenLiteral::Number(n) => buf.write_fmt(format_args!("{n}")),

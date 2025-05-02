@@ -118,6 +118,7 @@ impl Lexer {
         let span = span.range_to(input.span());
 
         let token = match ident {
+            "nil" => Token::Literal(TokenLiteral::Nil),
             "True" => Token::Literal(TokenLiteral::Bool(true)),
             "False" => Token::Literal(TokenLiteral::Bool(false)),
 
