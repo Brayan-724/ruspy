@@ -19,6 +19,20 @@ impl AstScope {
     }
 }
 
+macro_rules! peek_stmt {
+    ($source:ident($level:expr): | $peek:ident, $tk:ident | $expr:expr) => {{
+        let mut $peek = $source.clone();
+
+        Self::parse_pre_statement(&mut $peek, $level)
+            .then(|| $peek.tokens.pop_front())
+            .flatten()
+            .map(|$tk| $expr)
+            // Update global source state if found something
+            .inspect(|_| *$source = $peek)
+            .flatten()
+    }};
+}
+
 macro_rules! fn_bin_op {
     ($fn:ident, $base:ident; $($tk:ident => $op:ident),+  ) => {
         fn $fn(&mut self) -> AstExpr {
@@ -152,7 +166,7 @@ impl<'i> SourceAst<'i> {
                     vars.push(token);
 
                     let Some(token) = self.tokens.pop_front() else {
-                        break
+                        break;
                     };
 
                     match *token {
@@ -191,23 +205,15 @@ impl<'i> SourceAst<'i> {
 
         let body = Self::parse_scope(self, level + 1);
 
-        let mut peek_source = self.clone();
+        let otherwise = peek_stmt!(self(level): |source, keyword| match keyword.token {
+            kw!(Else) => {
+                source.expect_token(T![Colon]);
 
-        let otherwise = Self::parse_pre_statement(&mut peek_source, level)
-            .then(|| peek_source.tokens.pop_front())
-            .flatten()
-            .map(|keyword| match keyword.token {
-                kw!(Else) => {
-                    peek_source.expect_token(T![Colon]);
-
-                    Some(Self::parse_scope(&mut peek_source, level + 1))
-                }
-                kw!(Elif) => Some(scope![Self::parse_stmt_if(&mut peek_source, level)]),
-                _ => None,
-            })
-            // Update global source state if found something
-            .inspect(|_| *self = peek_source)
-            .flatten();
+                Some(source.parse_scope(level + 1))
+            }
+            kw!(Elif) => Some(scope![source.parse_stmt_if(level)]),
+            _ => None,
+        });
 
         AstStatement::Conditional {
             test,
@@ -237,6 +243,6 @@ impl<'i> SourceAst<'i> {
         }
     }
 
-    fn_bin_op!{parse_expr_bin_1, parse_expr_base; Star => Mul, Slash => Div}
-    fn_bin_op!{parse_expr_bin_2, parse_expr_bin_1; Add => Add, Minus => Sub}
+    fn_bin_op! {parse_expr_bin_1, parse_expr_base; Star => Mul, Slash => Div}
+    fn_bin_op! {parse_expr_bin_2, parse_expr_bin_1; Add => Add, Minus => Sub}
 }
