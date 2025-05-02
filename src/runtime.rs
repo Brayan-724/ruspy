@@ -107,12 +107,15 @@ impl Scope {
     ) {
         let test = self.visit_expr(test);
 
-        if let RuntimeValue::Bool(test) = test {
-            if test {
-                self.run(body);
-            }
-        } else {
-            panic!("Conditionals use booleans, this is not Javascript")
+        let test = match test {
+            RuntimeValue::Nil => false,
+            RuntimeValue::Bool(b) => b,
+            RuntimeValue::Number(n) => n != 0,
+            RuntimeValue::String(s) => !s.is_empty(),
+        };
+
+        if test {
+            self.run(body);
         }
     }
 
