@@ -6,7 +6,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use value::{RuntimeValue, RuntimeVariable};
+use value::{AsNumber, AsString, RuntimeValue, RuntimeVariable};
 
 use crate::ast::node::{AstBinaryOp, AstExpr, AstScope, AstStatement, AstUnaryOp};
 use crate::lexer::token::TokenLiteral;
@@ -50,29 +50,34 @@ impl Scope {
             .or_else(|| self.parent.as_ref().and_then(|p| p.get_variable(name)))
     }
 
-    pub fn set_variable(self: &Rc<Self>, name: String, value: RuntimeValue) {
-        let mut value = Some(value);
-
-        self.set_variable_inner(&name, &mut value);
-
-        // If no one use value, create the variable
-        if let Some(value) = value {
-            self.variables.borrow_mut().insert(name, value.into());
-        }
+    pub fn set_variable(self: &Rc<Self>, name: String, value: RuntimeValue) -> RuntimeVariable {
+        self.set_variable_inner(name, value)
     }
 
-    fn set_variable_inner(self: &Rc<Self>, name: &String, value: &mut Option<RuntimeValue>) {
-        let Some(var) = self.variables.borrow().get(name).cloned() else {
+    fn set_variable_inner(self: &Rc<Self>, name: String, value: RuntimeValue) -> RuntimeVariable {
+        let Some(var) = self.variables.borrow().get(&name).cloned() else {
             // Functions keep a secure context
             // to manipulate external variables
             // use `global` keyword, that clones
             // variables to current scope
             if self.is_function {
-                return;
+                return self
+                    .variables
+                    .borrow_mut()
+                    .entry(name)
+                    .insert_entry(value.into())
+                    .get()
+                    .clone();
             }
 
             let Some(parent) = self.parent.as_ref() else {
-                return;
+                return self
+                    .variables
+                    .borrow_mut()
+                    .entry(name)
+                    .insert_entry(value.into())
+                    .get()
+                    .clone();
             };
 
             return parent.set_variable_inner(name, value);
@@ -81,7 +86,9 @@ impl Scope {
         // SAFETY: This function is always called with Some
         // but needs option to know if someone use the value
         // and keep the ownership if not
-        *var.0.borrow_mut() = unsafe { value.take().unwrap_unchecked() };
+        *var.0.borrow_mut() = value;
+
+        var
     }
 
     pub fn visit_stmt(self: &Rc<Self>, stmt: AstStatement) {
@@ -123,17 +130,72 @@ impl Scope {
         match *expr {
             AstExpr::BinaryOp { op, left, right } => {
                 match (op, self.visit_expr(left), self.visit_expr(right)) {
-                    (AstBinaryOp::Mul, RuntimeValue::Number(a), RuntimeValue::Number(b)) => {
-                        RuntimeValue::Number(a * b)
+                    ////// Number Primitives //////
+                    (AstBinaryOp::Add, RuntimeValue::Number(a), RuntimeValue::Number(b)) => {
+                        RuntimeValue::Number(a + b)
                     }
                     (AstBinaryOp::Div, RuntimeValue::Number(a), RuntimeValue::Number(b)) => {
                         RuntimeValue::Number(a / b)
                     }
+                    (AstBinaryOp::Mul, RuntimeValue::Number(a), RuntimeValue::Number(b)) => {
+                        RuntimeValue::Number(a * b)
+                    }
                     (AstBinaryOp::Sub, RuntimeValue::Number(a), RuntimeValue::Number(b)) => {
                         RuntimeValue::Number(a - b)
                     }
-                    (AstBinaryOp::Add, RuntimeValue::Number(a), RuntimeValue::Number(b)) => {
-                        RuntimeValue::Number(a + b)
+
+                    ////// Bool "Primitives" //////
+                    (AstBinaryOp::Add, RuntimeValue::Bool(a), RuntimeValue::Bool(b)) => {
+                        RuntimeValue::Number(a.as_num() + b.as_num())
+                    }
+                    (AstBinaryOp::Add, RuntimeValue::Bool(false), RuntimeValue::Number(n))
+                    | (AstBinaryOp::Add, RuntimeValue::Number(n), RuntimeValue::Bool(false)) => {
+                        RuntimeValue::Number(n)
+                    }
+                    (AstBinaryOp::Add, RuntimeValue::Bool(true), RuntimeValue::Number(n))
+                    | (AstBinaryOp::Add, RuntimeValue::Number(n), RuntimeValue::Bool(true)) => {
+                        RuntimeValue::Number(n + 1)
+                    }
+                    (AstBinaryOp::Div, RuntimeValue::Bool(a), RuntimeValue::Bool(b)) => {
+                        RuntimeValue::Number(a.as_num() / b.as_num())
+                    }
+                    (AstBinaryOp::Div, RuntimeValue::Bool(a), RuntimeValue::Number(b)) => {
+                        RuntimeValue::Number(a.as_num() / b)
+                    }
+                    (AstBinaryOp::Div, RuntimeValue::Number(a), RuntimeValue::Bool(b)) => {
+                        RuntimeValue::Number(a / b.as_num())
+                    }
+                    (AstBinaryOp::Mul, RuntimeValue::Bool(a), RuntimeValue::Number(b)) => {
+                        RuntimeValue::Number(a.as_num() * b)
+                    }
+                    (AstBinaryOp::Mul, RuntimeValue::Bool(a), RuntimeValue::Bool(b)) => {
+                        RuntimeValue::Number(a.as_num() * b.as_num())
+                    }
+                    (AstBinaryOp::Mul, RuntimeValue::Number(a), RuntimeValue::Bool(b)) => {
+                        RuntimeValue::Number(a * b.as_num())
+                    }
+                    (AstBinaryOp::Sub, RuntimeValue::Bool(a), RuntimeValue::Bool(b)) => {
+                        RuntimeValue::Number(a.as_num() - b.as_num())
+                    }
+                    (AstBinaryOp::Sub, RuntimeValue::Bool(a), RuntimeValue::Number(b)) => {
+                        RuntimeValue::Number(a.as_num() - b)
+                    }
+                    (AstBinaryOp::Sub, RuntimeValue::Number(a), RuntimeValue::Bool(b)) => {
+                        RuntimeValue::Number(a - b.as_num())
+                    }
+
+                    ////// Concatenation //////
+                    (AstBinaryOp::Add, RuntimeValue::String(a), RuntimeValue::Nil) => {
+                        RuntimeValue::String(format!("{a}nil"))
+                    }
+                    (AstBinaryOp::Add, RuntimeValue::Nil, RuntimeValue::String(b)) => {
+                        RuntimeValue::String(format!("nil{b}"))
+                    }
+                    (AstBinaryOp::Add, RuntimeValue::Bool(a), RuntimeValue::String(b)) => {
+                        RuntimeValue::String(format!("{}{b}", a.as_string()))
+                    }
+                    (AstBinaryOp::Add, RuntimeValue::String(a), RuntimeValue::Bool(b)) => {
+                        RuntimeValue::String(format!("{a}{}", b.as_string()))
                     }
                     (AstBinaryOp::Add, RuntimeValue::Number(a), RuntimeValue::String(b)) => {
                         RuntimeValue::String(format!("{a}{b}"))
@@ -144,15 +206,32 @@ impl Scope {
                     (AstBinaryOp::Add, RuntimeValue::String(a), RuntimeValue::String(b)) => {
                         RuntimeValue::String(format!("{a}{b}"))
                     }
-                    (op, a, b) => panic!("Invalid operation types: {a:?} {op:?} {b:?}"),
+
+                    ////// Multiplication //////
+                    (AstBinaryOp::Mul, RuntimeValue::String(s), RuntimeValue::Bool(true))
+                    | (AstBinaryOp::Mul, RuntimeValue::Bool(true), RuntimeValue::String(s)) => {
+                        RuntimeValue::String(s)
+                    }
+                    (AstBinaryOp::Mul, RuntimeValue::String(_), RuntimeValue::Bool(false))
+                    | (AstBinaryOp::Mul, RuntimeValue::Bool(false), RuntimeValue::String(_)) => {
+                        RuntimeValue::String(String::new())
+                    }
+                    (AstBinaryOp::Mul, RuntimeValue::Number(a), RuntimeValue::String(b)) => {
+                        RuntimeValue::String(b.repeat(a as usize))
+                    }
+                    (AstBinaryOp::Mul, RuntimeValue::String(a), RuntimeValue::Number(b)) => {
+                        RuntimeValue::String(a.repeat(b as usize))
+                    }
+
+                    (_, _, RuntimeValue::String(_)) | (_, RuntimeValue::String(_), _) => {
+                        RuntimeValue::Nil
+                    }
+                    (_, _, RuntimeValue::Nil) | (_, RuntimeValue::Nil, _) => RuntimeValue::Nil,
                 }
             }
             AstExpr::Ident(var) => self
                 .get_variable(&var)
-                .unwrap_or_else(|| panic!("Undefined variable: {var}"))
-                .0
-                .borrow()
-                .clone(),
+                .map_or_else(|| RuntimeValue::Nil, |var| var.0.borrow().clone()),
             AstExpr::Literal(TokenLiteral::Nil) => RuntimeValue::Nil,
             AstExpr::Literal(TokenLiteral::Bool(b)) => RuntimeValue::Bool(b),
             AstExpr::Literal(TokenLiteral::Number(n)) => RuntimeValue::Number(n),
@@ -161,8 +240,10 @@ impl Scope {
                 op: AstUnaryOp::Not,
                 right,
             } => match self.visit_expr(right) {
-                RuntimeValue::Bool(b) => RuntimeValue::Bool(b),
-                v => panic!("Unsupported type: {v:?}"),
+                RuntimeValue::Nil => RuntimeValue::Bool(true),
+                RuntimeValue::Bool(b) => RuntimeValue::Bool(!b),
+                RuntimeValue::Number(n) => RuntimeValue::Bool(n == 0),
+                RuntimeValue::String(n) => RuntimeValue::Bool(n.is_empty()),
             },
         }
     }
@@ -173,9 +254,9 @@ impl Scope {
         };
 
         for var in vars {
-            let Some(value) = parent.get_variable(&var) else {
-                panic!("Trying to globalize undeclared variable: {var}")
-            };
+            let value = parent
+                .get_variable(&var)
+                .unwrap_or_else(|| parent.set_variable(var.clone(), RuntimeValue::Nil));
 
             self.variables.borrow_mut().insert(var, value);
         }
