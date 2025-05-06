@@ -76,7 +76,7 @@ impl Lexer {
             "*".value(TokenPunctuation::Star),
         ])
         .with_span()
-        .map(|(tk, span)| (tk, Span::from(span)))
+        .map(IntoSpan::into_span)
         .parse_next(input)
         .unwrap_or_else(|()| {
             input.error(format!(
