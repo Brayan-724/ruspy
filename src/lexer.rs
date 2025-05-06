@@ -21,7 +21,8 @@ use winnow::token::{any, take_while};
 pub struct Lexer;
 
 impl Lexer {
-    pub fn from_str<'i>(input: &'i str) -> LexerResult<'i, VecDeque<SpannedToken>> {
+    #[allow(clippy::should_implement_trait)]
+    pub fn from_str(input: &str) -> LexerResult<'_, VecDeque<SpannedToken>> {
         let mut input = SourceLexer::new(input);
         let mut tokens = VecDeque::new();
 
@@ -77,7 +78,7 @@ impl Lexer {
         .with_span()
         .map(|(tk, span)| (tk, Span::from(span)))
         .parse_next(input)
-        .unwrap_or_else(|_: ()| {
+        .unwrap_or_else(|()| {
             input.error(format!(
                 "Unexpected char: {}",
                 format!("{char:#?}").fg(Color::BrightRed)

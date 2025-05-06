@@ -56,15 +56,13 @@ impl fmt::Debug for Token {
 impl fmt::Display for Token {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Token::Ident(ident) => f.write_fmt(format_args!("{VARIABLE}Ident       {ident}{R}"))?,
-            Token::Keyword(kw) => f.write_fmt(format_args!("{KEYWORD}Keyword     {kw:}"))?,
-            Token::Literal(lit) => f.write_fmt(format_args!("{LITERAL}Literal     {lit:}"))?,
+            Token::Ident(ident) => f.write_fmt(format_args!("{VARIABLE}Ident       {ident}{R}")),
+            Token::Keyword(kw) => f.write_fmt(format_args!("{KEYWORD}Keyword     {kw:}")),
+            Token::Literal(lit) => f.write_fmt(format_args!("{LITERAL}Literal     {lit:}")),
             Token::Punctuation(punctuation) => {
-                f.write_fmt(format_args!("Punctuation {punctuation}"))?
+                f.write_fmt(format_args!("Punctuation {punctuation}"))
             }
         }
-
-        Ok(())
     }
 }
 

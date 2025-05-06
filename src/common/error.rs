@@ -24,8 +24,7 @@ fn extract_line_info(base: &str, offset: usize) -> (usize, usize, Range<usize>) 
     let end_line = base[start_line..]
         .bytes()
         .position(|c| (c == b'\n'))
-        .map(|offset| offset + start_line)
-        .unwrap_or(base.len());
+        .map_or(base.len(), |offset| offset + start_line);
 
     (line, offset - start_line, start_line..end_line)
 }
@@ -40,7 +39,7 @@ fn raise_format(
     let line_digits = line.checked_ilog10().unwrap_or(0) as usize + 1;
 
     println!("\x1b[31merror: \x1b[1m{msg}\x1b[0m");
-    println!("\x1b[36m {} \x1b[34m| \x1b[0m{ctx}", line);
+    println!("\x1b[36m {line} \x1b[34m| \x1b[0m{ctx}");
     println!(
         "\x1b[36m {0:<line_digits$} \x1b[34m| \x1b[31m{0:<cursor_offset$}{0:^<cursor_len$}",
         ""

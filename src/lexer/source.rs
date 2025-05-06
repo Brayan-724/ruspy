@@ -1,7 +1,7 @@
 use core::fmt;
 use std::backtrace::Backtrace;
 
-use ariadne::{Config, Label, Report, ReportKind, Source};
+use ariadne::{Label, Report, ReportKind, Source};
 use winnow::LocatingSlice;
 use winnow::error::{AddContext, ParserError};
 use winnow::stream::{Location, Stream};
@@ -27,7 +27,7 @@ pub trait SourceLexerExt<'i> {
 
 impl<'i> SourceLexerExt<'i> for SourceLexer<'i> {
     fn base(&self) -> &'i str {
-        let mut base = self.clone();
+        let mut base = *self;
         base.reset_to_start();
         *base
     }
@@ -87,7 +87,7 @@ impl<'i, C: ToString> AddContext<SourceLexer<'i>, C> for LexerError<'i> {
     }
 }
 
-impl<'i> fmt::Display for LexerError<'i> {
+impl fmt::Display for LexerError<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         _ = Report::build(ReportKind::Error, self.span)
             .with_labels(
@@ -123,7 +123,7 @@ impl<'i> fmt::Display for LexerError<'i> {
 
             let file = &file_line[at_idx + 3..];
 
-            if !file.starts_with(".") {
+            if !file.starts_with('.') {
                 continue;
             }
 

@@ -135,7 +135,7 @@ impl<'i> SourceAst<'i> {
     }
 }
 
-impl<'i, 's> PeekedToken<'i, 's> {
+impl PeekedToken<'_, '_> {
     pub fn accept(self) -> SpannedToken {
         self.token
     }
@@ -146,7 +146,7 @@ impl<'i, 's> PeekedToken<'i, 's> {
     }
 }
 
-impl<'i, 's> ops::Deref for PeekedToken<'i, 's> {
+impl ops::Deref for PeekedToken<'_, '_> {
     type Target = SpannedToken;
 
     fn deref(&self) -> &Self::Target {

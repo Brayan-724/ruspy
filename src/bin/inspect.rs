@@ -13,7 +13,7 @@ fn main() {
 
     println!(" -- LEXER --");
 
-    let tokens = Lexer::from_str(&mut file_content.as_str()).expect("Cannot parse");
+    let tokens = Lexer::from_str(&file_content).expect("Cannot parse");
 
     Lexer::pretty_print(&tokens);
 

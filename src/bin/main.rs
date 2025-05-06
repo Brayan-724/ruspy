@@ -11,12 +11,12 @@ fn main() {
     let file_content = fs::read_to_string(&file_path)
         .unwrap_or_else(|err| panic!("Cannot read {file_path:?}: {err}"));
 
-    let tokens = Lexer::from_str(&mut file_content.as_str()).expect("Cannot parse");
+    let tokens = Lexer::from_str(&file_content).expect("Cannot parse");
 
     let tree = AstScope::from_tokens(&file_content, tokens);
 
     let scope = Scope::new();
     scope.run(tree);
 
-    println!("{scope:#?}")
+    println!("{scope:#?}");
 }

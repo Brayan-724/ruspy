@@ -7,11 +7,6 @@ where
     T: FromStr,
     T::Err: fmt::Debug,
 {
-    T::from_str(
-        &env::args()
-            .skip(1)
-            .next()
-            .expect("Requires at least one argument"),
-    )
-    .expect("Cannot parse argument")
+    T::from_str(&env::args().nth(1).expect("Requires at least one argument"))
+        .expect("Cannot parse argument")
 }

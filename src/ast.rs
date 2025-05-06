@@ -66,7 +66,7 @@ macro_rules! fn_bin_op {
     };
 }
 
-impl<'i> SourceAst<'i> {
+impl SourceAst<'_> {
     fn parse_scope(&mut self, level: usize) -> AstScope {
         let mut nodes = Vec::new();
 

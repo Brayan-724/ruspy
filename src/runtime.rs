@@ -97,21 +97,16 @@ impl Scope {
                 test,
                 body,
                 otherwise,
-            } => self.visit_conditional(test, body, otherwise),
+            } => self.visit_conditional(*test, body, otherwise),
             AstStatement::Expresion(expr) => {
-                self.visit_expr(expr);
+                self.visit_expr(*expr);
             }
             AstStatement::Global(vars) => self.visit_global(vars),
-            AstStatement::VariableDeclaration(var, expr) => self.visit_var_decl(var, expr),
+            AstStatement::VariableDeclaration(var, expr) => self.visit_var_decl(var, *expr),
         }
     }
 
-    pub fn visit_conditional(
-        self: &Rc<Self>,
-        test: Box<AstExpr>,
-        body: AstScope,
-        _: Option<AstScope>,
-    ) {
+    pub fn visit_conditional(self: &Rc<Self>, test: AstExpr, body: AstScope, _: Option<AstScope>) {
         let test = self.visit_expr(test);
 
         let test = match test {
@@ -126,109 +121,9 @@ impl Scope {
         }
     }
 
-    pub fn visit_expr(self: &Rc<Self>, expr: Box<AstExpr>) -> RuntimeValue {
-        match *expr {
-            AstExpr::BinaryOp { op, left, right } => {
-                match (op, self.visit_expr(left), self.visit_expr(right)) {
-                    ////// Number Primitives //////
-                    (AstBinaryOp::Add, RuntimeValue::Number(a), RuntimeValue::Number(b)) => {
-                        RuntimeValue::Number(a + b)
-                    }
-                    (AstBinaryOp::Div, RuntimeValue::Number(a), RuntimeValue::Number(b)) => {
-                        RuntimeValue::Number(a / b)
-                    }
-                    (AstBinaryOp::Mul, RuntimeValue::Number(a), RuntimeValue::Number(b)) => {
-                        RuntimeValue::Number(a * b)
-                    }
-                    (AstBinaryOp::Sub, RuntimeValue::Number(a), RuntimeValue::Number(b)) => {
-                        RuntimeValue::Number(a - b)
-                    }
-
-                    ////// Bool "Primitives" //////
-                    (AstBinaryOp::Add, RuntimeValue::Bool(a), RuntimeValue::Bool(b)) => {
-                        RuntimeValue::Number(a.as_num() + b.as_num())
-                    }
-                    (AstBinaryOp::Add, RuntimeValue::Bool(false), RuntimeValue::Number(n))
-                    | (AstBinaryOp::Add, RuntimeValue::Number(n), RuntimeValue::Bool(false)) => {
-                        RuntimeValue::Number(n)
-                    }
-                    (AstBinaryOp::Add, RuntimeValue::Bool(true), RuntimeValue::Number(n))
-                    | (AstBinaryOp::Add, RuntimeValue::Number(n), RuntimeValue::Bool(true)) => {
-                        RuntimeValue::Number(n + 1)
-                    }
-                    (AstBinaryOp::Div, RuntimeValue::Bool(a), RuntimeValue::Bool(b)) => {
-                        RuntimeValue::Number(a.as_num() / b.as_num())
-                    }
-                    (AstBinaryOp::Div, RuntimeValue::Bool(a), RuntimeValue::Number(b)) => {
-                        RuntimeValue::Number(a.as_num() / b)
-                    }
-                    (AstBinaryOp::Div, RuntimeValue::Number(a), RuntimeValue::Bool(b)) => {
-                        RuntimeValue::Number(a / b.as_num())
-                    }
-                    (AstBinaryOp::Mul, RuntimeValue::Bool(a), RuntimeValue::Number(b)) => {
-                        RuntimeValue::Number(a.as_num() * b)
-                    }
-                    (AstBinaryOp::Mul, RuntimeValue::Bool(a), RuntimeValue::Bool(b)) => {
-                        RuntimeValue::Number(a.as_num() * b.as_num())
-                    }
-                    (AstBinaryOp::Mul, RuntimeValue::Number(a), RuntimeValue::Bool(b)) => {
-                        RuntimeValue::Number(a * b.as_num())
-                    }
-                    (AstBinaryOp::Sub, RuntimeValue::Bool(a), RuntimeValue::Bool(b)) => {
-                        RuntimeValue::Number(a.as_num() - b.as_num())
-                    }
-                    (AstBinaryOp::Sub, RuntimeValue::Bool(a), RuntimeValue::Number(b)) => {
-                        RuntimeValue::Number(a.as_num() - b)
-                    }
-                    (AstBinaryOp::Sub, RuntimeValue::Number(a), RuntimeValue::Bool(b)) => {
-                        RuntimeValue::Number(a - b.as_num())
-                    }
-
-                    ////// Concatenation //////
-                    (AstBinaryOp::Add, RuntimeValue::String(a), RuntimeValue::Nil) => {
-                        RuntimeValue::String(format!("{a}nil"))
-                    }
-                    (AstBinaryOp::Add, RuntimeValue::Nil, RuntimeValue::String(b)) => {
-                        RuntimeValue::String(format!("nil{b}"))
-                    }
-                    (AstBinaryOp::Add, RuntimeValue::Bool(a), RuntimeValue::String(b)) => {
-                        RuntimeValue::String(format!("{}{b}", a.as_string()))
-                    }
-                    (AstBinaryOp::Add, RuntimeValue::String(a), RuntimeValue::Bool(b)) => {
-                        RuntimeValue::String(format!("{a}{}", b.as_string()))
-                    }
-                    (AstBinaryOp::Add, RuntimeValue::Number(a), RuntimeValue::String(b)) => {
-                        RuntimeValue::String(format!("{a}{b}"))
-                    }
-                    (AstBinaryOp::Add, RuntimeValue::String(a), RuntimeValue::Number(b)) => {
-                        RuntimeValue::String(format!("{a}{b}"))
-                    }
-                    (AstBinaryOp::Add, RuntimeValue::String(a), RuntimeValue::String(b)) => {
-                        RuntimeValue::String(format!("{a}{b}"))
-                    }
-
-                    ////// Multiplication //////
-                    (AstBinaryOp::Mul, RuntimeValue::String(s), RuntimeValue::Bool(true))
-                    | (AstBinaryOp::Mul, RuntimeValue::Bool(true), RuntimeValue::String(s)) => {
-                        RuntimeValue::String(s)
-                    }
-                    (AstBinaryOp::Mul, RuntimeValue::String(_), RuntimeValue::Bool(false))
-                    | (AstBinaryOp::Mul, RuntimeValue::Bool(false), RuntimeValue::String(_)) => {
-                        RuntimeValue::String(String::new())
-                    }
-                    (AstBinaryOp::Mul, RuntimeValue::Number(a), RuntimeValue::String(b)) => {
-                        RuntimeValue::String(b.repeat(a as usize))
-                    }
-                    (AstBinaryOp::Mul, RuntimeValue::String(a), RuntimeValue::Number(b)) => {
-                        RuntimeValue::String(a.repeat(b as usize))
-                    }
-
-                    (_, _, RuntimeValue::String(_)) | (_, RuntimeValue::String(_), _) => {
-                        RuntimeValue::Nil
-                    }
-                    (_, _, RuntimeValue::Nil) | (_, RuntimeValue::Nil, _) => RuntimeValue::Nil,
-                }
-            }
+    pub fn visit_expr(self: &Rc<Self>, expr: AstExpr) -> RuntimeValue {
+        match expr {
+            AstExpr::BinaryOp { op, left, right } => self.visit_expr_binop(op, *left, *right),
             AstExpr::Ident(var) => self
                 .get_variable(&var)
                 .map_or_else(|| RuntimeValue::Nil, |var| var.0.borrow().clone()),
@@ -239,12 +134,125 @@ impl Scope {
             AstExpr::UnaryOp {
                 op: AstUnaryOp::Not,
                 right,
-            } => match self.visit_expr(right) {
+            } => match self.visit_expr(*right) {
                 RuntimeValue::Nil => RuntimeValue::Bool(true),
                 RuntimeValue::Bool(b) => RuntimeValue::Bool(!b),
                 RuntimeValue::Number(n) => RuntimeValue::Bool(n == 0),
                 RuntimeValue::String(n) => RuntimeValue::Bool(n.is_empty()),
             },
+        }
+    }
+
+    pub fn visit_expr_binop(
+        self: &Rc<Self>,
+        op: AstBinaryOp,
+        left: AstExpr,
+        right: AstExpr,
+    ) -> RuntimeValue {
+        match (op, self.visit_expr(left), self.visit_expr(right)) {
+            ////// Number Primitives //////
+            (AstBinaryOp::Add, RuntimeValue::Number(a), RuntimeValue::Number(b)) => {
+                RuntimeValue::Number(a + b)
+            }
+            (AstBinaryOp::Div, RuntimeValue::Number(a), RuntimeValue::Number(b)) => {
+                RuntimeValue::Number(a / b)
+            }
+            (AstBinaryOp::Mul, RuntimeValue::Number(a), RuntimeValue::Number(b)) => {
+                RuntimeValue::Number(a * b)
+            }
+            (AstBinaryOp::Sub, RuntimeValue::Number(a), RuntimeValue::Number(b)) => {
+                RuntimeValue::Number(a - b)
+            }
+
+            ////// Bool "Primitives" //////
+            (AstBinaryOp::Add, RuntimeValue::Bool(a), RuntimeValue::Bool(b)) => {
+                RuntimeValue::Number(a.as_num() + b.as_num())
+            }
+            (AstBinaryOp::Add, RuntimeValue::Bool(false), RuntimeValue::Number(n))
+            | (AstBinaryOp::Add, RuntimeValue::Number(n), RuntimeValue::Bool(false)) => {
+                RuntimeValue::Number(n)
+            }
+            (AstBinaryOp::Add, RuntimeValue::Bool(true), RuntimeValue::Number(n))
+            | (AstBinaryOp::Add, RuntimeValue::Number(n), RuntimeValue::Bool(true)) => {
+                RuntimeValue::Number(n + 1)
+            }
+            (AstBinaryOp::Div, RuntimeValue::Bool(a), RuntimeValue::Bool(b)) => {
+                RuntimeValue::Number(a.as_num() / b.as_num())
+            }
+            (AstBinaryOp::Div, RuntimeValue::Bool(a), RuntimeValue::Number(b)) => {
+                RuntimeValue::Number(a.as_num() / b)
+            }
+            (AstBinaryOp::Div, RuntimeValue::Number(a), RuntimeValue::Bool(b)) => {
+                RuntimeValue::Number(a / b.as_num())
+            }
+            (AstBinaryOp::Mul, RuntimeValue::Bool(a), RuntimeValue::Number(b)) => {
+                RuntimeValue::Number(a.as_num() * b)
+            }
+            (AstBinaryOp::Mul, RuntimeValue::Bool(a), RuntimeValue::Bool(b)) => {
+                RuntimeValue::Number(a.as_num() * b.as_num())
+            }
+            (AstBinaryOp::Mul, RuntimeValue::Number(a), RuntimeValue::Bool(b)) => {
+                RuntimeValue::Number(a * b.as_num())
+            }
+            (AstBinaryOp::Sub, RuntimeValue::Bool(a), RuntimeValue::Bool(b)) => {
+                RuntimeValue::Number(a.as_num() - b.as_num())
+            }
+            (AstBinaryOp::Sub, RuntimeValue::Bool(a), RuntimeValue::Number(b)) => {
+                RuntimeValue::Number(a.as_num() - b)
+            }
+            (AstBinaryOp::Sub, RuntimeValue::Number(a), RuntimeValue::Bool(b)) => {
+                RuntimeValue::Number(a - b.as_num())
+            }
+
+            ////// Concatenation //////
+            (AstBinaryOp::Add, RuntimeValue::String(a), RuntimeValue::Nil) => {
+                RuntimeValue::String(format!("{a}nil"))
+            }
+            (AstBinaryOp::Add, RuntimeValue::Nil, RuntimeValue::String(b)) => {
+                RuntimeValue::String(format!("nil{b}"))
+            }
+            (AstBinaryOp::Add, RuntimeValue::Bool(a), RuntimeValue::String(b)) => {
+                RuntimeValue::String(format!("{}{b}", a.as_string()))
+            }
+            (AstBinaryOp::Add, RuntimeValue::String(a), RuntimeValue::Bool(b)) => {
+                RuntimeValue::String(format!("{a}{}", b.as_string()))
+            }
+            (AstBinaryOp::Add, RuntimeValue::Number(a), RuntimeValue::String(b)) => {
+                RuntimeValue::String(format!("{a}{b}"))
+            }
+            (AstBinaryOp::Add, RuntimeValue::String(a), RuntimeValue::Number(b)) => {
+                RuntimeValue::String(format!("{a}{b}"))
+            }
+            (AstBinaryOp::Add, RuntimeValue::String(a), RuntimeValue::String(b)) => {
+                RuntimeValue::String(format!("{a}{b}"))
+            }
+
+            ////// Multiplication //////
+            (AstBinaryOp::Mul, RuntimeValue::String(s), RuntimeValue::Bool(true))
+            | (AstBinaryOp::Mul, RuntimeValue::Bool(true), RuntimeValue::String(s)) => {
+                RuntimeValue::String(s)
+            }
+            (AstBinaryOp::Mul, RuntimeValue::String(_), RuntimeValue::Bool(false))
+            | (AstBinaryOp::Mul, RuntimeValue::Bool(false), RuntimeValue::String(_)) => {
+                RuntimeValue::String(String::new())
+            }
+            (AstBinaryOp::Mul, RuntimeValue::Number(a), RuntimeValue::String(b)) => {
+                RuntimeValue::String(
+                    a.is_positive()
+                        .then(|| b.repeat(a.unsigned_abs() as usize))
+                        .unwrap_or_default(),
+                )
+            }
+            (AstBinaryOp::Mul, RuntimeValue::String(a), RuntimeValue::Number(b)) => {
+                RuntimeValue::String(
+                    b.is_positive()
+                        .then(|| a.repeat(b.unsigned_abs() as usize))
+                        .unwrap_or_default(),
+                )
+            }
+
+            (_, _, RuntimeValue::String(_) | RuntimeValue::Nil)
+            | (_, RuntimeValue::String(_) | RuntimeValue::Nil, _) => RuntimeValue::Nil,
         }
     }
 
@@ -262,7 +270,7 @@ impl Scope {
         }
     }
 
-    pub fn visit_var_decl(self: &Rc<Self>, var: String, expr: Box<AstExpr>) {
+    pub fn visit_var_decl(self: &Rc<Self>, var: String, expr: AstExpr) {
         self.set_variable(var, self.visit_expr(expr));
     }
 }

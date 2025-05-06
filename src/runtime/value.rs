@@ -21,9 +21,9 @@ pub enum RuntimeValue {
     String(String),
 }
 
-impl Into<RuntimeVariable> for RuntimeValue {
-    fn into(self) -> RuntimeVariable {
-        self.wrap()
+impl From<RuntimeValue> for RuntimeVariable {
+    fn from(val: RuntimeValue) -> Self {
+        val.wrap()
     }
 }
 
