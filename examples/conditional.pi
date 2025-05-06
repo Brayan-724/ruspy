@@ -1,10 +1,10 @@
 if True:
- output_a = 1
+  output_a = 1
 
 if True: output_b = 1
 
 if False: 
- output_c = 1
+  output_c = 1
 else: 
- output_c = 2
+  output_c = 2
 

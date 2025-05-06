@@ -1,7 +1,7 @@
 #!/usr/bin/env nu
 
 def "main test" [test: string = ""] {
-  cargo test --no-fail-fast --lib --verbose $test -- --nocapture
+  cargo test --lib --verbose $test -- --nocapture --test-threads 1
 }
 
 def "main run" [path: path] {

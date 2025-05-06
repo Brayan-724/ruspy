@@ -2,8 +2,9 @@ use core::fmt;
 use std::collections::VecDeque;
 use std::ops;
 
-use crate::common::error::{raise_at, raise_range};
-use crate::lexer::span::SpanRange;
+use ariadne::{Color, Label, Report, ReportBuilder, ReportKind, Source};
+
+use crate::lexer::span::Span;
 use crate::lexer::token::{SpannedToken, Token};
 
 #[derive(Clone, Debug)]
@@ -38,11 +39,11 @@ impl<'i> SourceAst<'i> {
 
     pub fn peek<'a>(&'a mut self) -> Option<PeekedToken<'i, 'a>> {
         self.tokens.pop_front().map(|token| {
-            let last_offset = self.last_offset;
-            self.last_offset = token.span.from.offset;
+            let last_span = self.last_offset;
+            self.last_offset = token.span.to;
             PeekedToken {
                 token,
-                last_offset,
+                last_offset: last_span,
                 source: self,
             }
         })
@@ -56,7 +57,7 @@ impl<'i> SourceAst<'i> {
         };
 
         let last_offset = self.last_offset;
-        self.last_offset = token.span.from.offset;
+        self.last_offset = token.span.to;
         PeekedToken {
             token,
             last_offset,
@@ -67,14 +68,14 @@ impl<'i> SourceAst<'i> {
     pub fn expect(&mut self) -> SpannedToken {
         self.tokens
             .pop_front()
-            .inspect(|t| self.last_offset = t.span.from.offset)
+            .inspect(|t| self.last_offset = t.span.to)
             .unwrap_or_else(|| self.error_in_place("Unexpected EOF"))
     }
 
     pub fn expect_msg(&mut self, msg: impl fmt::Display) -> SpannedToken {
         self.tokens
             .pop_front()
-            .inspect(|t| self.last_offset = t.span.from.offset)
+            .inspect(|t| self.last_offset = t.span.to)
             .unwrap_or_else(|| self.error_in_place(format!("Unexpected EOF. {msg}")))
     }
 
@@ -83,16 +84,23 @@ impl<'i> SourceAst<'i> {
         msg: impl fmt::Display,
         predicate: impl Fn(SpannedToken) -> Option<T>,
     ) -> T {
-        let first = self.expect_msg(format!("Expected {msg}"));
+        let expected_err = format!("Expected {msg}");
+        let first = self.expect_msg(&expected_err);
 
         let span = first.span;
-        let err = format!("Unexpected token: {first:?}. Expected: {msg}");
+        let unexpected_err = format!("Unexpected token: {first:?}");
 
         if let Some(t) = predicate(first) {
-            self.last_offset = span.from.offset;
+            self.last_offset = span.to;
             t
         } else {
-            self.error_at(span, err);
+            self.error_build(span, |b| {
+                b.with_message(unexpected_err).with_label(
+                    Label::new(span)
+                        .with_color(Color::BrightRed)
+                        .with_message(expected_err),
+                )
+            });
         }
     }
 
@@ -101,11 +109,29 @@ impl<'i> SourceAst<'i> {
     }
 
     pub fn error_in_place(&self, msg: impl fmt::Display) -> ! {
-        raise_at(self.base, self.last_offset, msg)
+        self.error_build(Span::char(self.last_offset), |b| b.with_message(&msg))
     }
 
-    pub fn error_at(&self, span: SpanRange, msg: impl fmt::Display) -> ! {
-        raise_range(self.base, span, msg)
+    pub fn error_at(&self, span: Span, msg: impl fmt::Display) -> ! {
+        self.error_build(span, |b| {
+            b.with_message(&msg).with_label(
+                Label::new(span)
+                    .with_message(msg)
+                    .with_color(ariadne::Color::BrightRed),
+            )
+        })
+    }
+
+    pub fn error_build(
+        &self,
+        span: Span,
+        fun: impl FnOnce(ReportBuilder<Span>) -> ReportBuilder<Span>,
+    ) -> ! {
+        _ = fun(Report::build(ReportKind::Error, span))
+            .finish()
+            .eprint(Source::from(self.base));
+
+        std::process::exit(1);
     }
 }
 

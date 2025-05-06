@@ -2,10 +2,10 @@ use winnow::Parser;
 use winnow::stream::AsChar;
 use winnow::token::take_while;
 
-use super::source::{LexerError, SourceLexer};
+use super::source::{LexerResult, SourceLexer};
 use super::token::TokenLiteral;
 
-pub fn eat_spaces(input: &mut SourceLexer<&str>) -> Result<(), LexerError> {
+pub fn eat_spaces<'i>(input: &mut SourceLexer<'i>) -> LexerResult<'i> {
     take_while(0.., AsChar::is_space).parse_next(input)?;
     Ok(())
 }

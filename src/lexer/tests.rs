@@ -14,7 +14,7 @@ fn expression() {
         Vec::from(res),
         &[
             ident!(a),
-            T!(Add),
+            T!(Plus),
             ident!(b),
             T!(Star),
             ident!(c),
@@ -27,18 +27,14 @@ fn expression() {
 }
 
 #[test]
-fn keywords() {
+fn keyword() {
     let res = Lexer::from_str("global").unwrap();
     assert_eq!(Vec::from(res), &[kw!(Global)])
 }
 
 #[test]
 fn conditional() {
-    let res = Lexer::from_str(
-        "if True:\
-       \n a = 1",
-    )
-    .unwrap();
+    let res = Lexer::from_str("if True:\n  a = 1").unwrap();
     assert_eq!(
         Vec::from(res),
         &[

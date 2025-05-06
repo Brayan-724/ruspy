@@ -7,6 +7,7 @@ pub mod utils;
 
 use std::collections::VecDeque;
 
+use ariadne::{Color, Label};
 use node::{AstBinaryOp, AstExpr, AstScope, AstStatement, AstUnaryOp};
 use source::SourceAst;
 
@@ -23,13 +24,13 @@ macro_rules! peek_stmt {
     ($source:ident($level:expr): | $peek:ident, $tk:ident | $expr:expr) => {{
         let mut $peek = $source.clone();
 
-        Self::parse_pre_statement(&mut $peek, $level)
+        $peek
+            .parse_pre_statement($level)
             .then(|| $peek.tokens.pop_front())
             .flatten()
-            .map(|$tk| $expr)
+            .and_then(|$tk| $expr)
             // Update global source state if found something
             .inspect(|_| *$source = $peek)
-            .flatten()
     }};
 }
 
@@ -182,7 +183,7 @@ impl<'i> SourceAst<'i> {
                 AstStatement::Global(vars)
             }
 
-            kw!(If) => Self::parse_stmt_if(self, level),
+            kw!(If) => self.parse_stmt_if(level),
 
             T![Bang] | Token::Literal(_) => {
                 first.recover();
@@ -203,7 +204,7 @@ impl<'i> SourceAst<'i> {
 
         self.expect_token(T![Colon]);
 
-        let body = Self::parse_scope(self, level + 1);
+        let body = self.parse_scope(level + 1);
 
         let otherwise = peek_stmt!(self(level): |source, keyword| match keyword.token {
             kw!(Else) => {
@@ -236,13 +237,17 @@ impl<'i> SourceAst<'i> {
                 op: AstUnaryOp::Not,
                 right: self.parse_expr_base().into(),
             },
-            _ => self.error_at(
-                first.span,
-                format!("Unexpected token: {:?}. Expected expression.", first.token),
-            ),
+            _ => self.error_build(first.span, |b| {
+                b.with_message(format!("Unexpected token: {:?}", first.token))
+                    .with_label(
+                        Label::new(first.span)
+                            .with_color(Color::BrightRed)
+                            .with_message("Expected expression"),
+                    )
+            }),
         }
     }
 
     fn_bin_op! {parse_expr_bin_1, parse_expr_base; Star => Mul, Slash => Div}
-    fn_bin_op! {parse_expr_bin_2, parse_expr_bin_1; Add => Add, Minus => Sub}
+    fn_bin_op! {parse_expr_bin_2, parse_expr_bin_1; Plus => Add, Minus => Sub}
 }

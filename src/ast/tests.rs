@@ -40,8 +40,20 @@ fn expression() {
 }
 
 #[test]
+fn global_stmt() {
+    let res = create_scope("global a, b");
+    assert_eq!(
+        res,
+        scope![AstStatement::Global(Vec::from([
+            ident!(@raw a),
+            ident!(@raw b),
+        ]))]
+    )
+}
+
+#[test]
 fn conditional() {
-    let res = create_scope("if True:\n a = 1");
+    let res = create_scope("if True:\n  a = 1");
     assert_eq!(
         res,
         scope![AstStatement::Conditional {
@@ -57,7 +69,7 @@ fn conditional() {
 
 #[test]
 fn conditional_inline() {
-    let res = create_scope("if True: a = 1");
+    let res = create_scope("if True:  a = 1");
     assert_eq!(
         res,
         scope![AstStatement::Conditional {
@@ -73,7 +85,7 @@ fn conditional_inline() {
 
 #[test]
 fn conditional_else() {
-    let res = create_scope("if True:\n a = 1\nelse:\n a = 2");
+    let res = create_scope("if True:\n  a = 1\nelse:\n  a = 2");
     assert_eq!(
         res,
         scope![AstStatement::Conditional {

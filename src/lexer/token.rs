@@ -1,10 +1,10 @@
 use std::ops;
 
-use super::span::SpanRange;
+use super::span::Span;
 
 #[derive(Clone)]
 pub struct SpannedToken {
-    pub span: SpanRange,
+    pub span: Span,
     pub token: Token,
 }
 
@@ -39,7 +39,7 @@ pub enum TokenLiteral {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum TokenPunctuation {
     /// +
-    Add,
+    Plus,
     /// !
     Bang,
     /// !=
@@ -81,11 +81,11 @@ impl Token {
 }
 
 impl SpannedToken {
-    pub fn new(span: SpanRange, token: Token) -> Self {
+    pub fn new(span: Span, token: Token) -> Self {
         Self { span, token }
     }
 
-    pub fn parts(self) -> (SpanRange, Token) {
+    pub fn parts(self) -> (Span, Token) {
         (self.span, self.token)
     }
 }

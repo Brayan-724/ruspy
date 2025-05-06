@@ -5,12 +5,12 @@ use std::fmt::Write;
 use crate::pretty_print::*;
 
 use super::Lexer;
-use super::span::{Span, SpanRange};
+use super::span::Span;
 use super::token::{SpannedToken, Token, TokenKeyword, TokenLiteral, TokenPunctuation};
 
 impl Lexer {
     pub fn pretty_print(tokens: &VecDeque<SpannedToken>) {
-        println!("LIN:COL LIN:COL KIND        RENDER");
+        println!("BYTE  BYTE KIND        RENDER");
         tokens.iter().for_each(|token| println!("{token}"));
     }
 }
@@ -31,19 +31,9 @@ impl fmt::Display for Span {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if f.alternate() {
             f.write_fmt(format_args!(
-                "{LINE}{:>2}{R}:{COLUMN}{:>2}{R}",
-                self.line, self.col
+                "{LINE}{:>3}{R}..{LINE}{:>3}{R}",
+                self.from, self.to
             ))
-        } else {
-            f.write_fmt(format_args!("{} [{}:{}]", self.offset, self.line, self.col))
-        }
-    }
-}
-
-impl fmt::Display for SpanRange {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if f.alternate() {
-            f.write_fmt(format_args!("{:#} ..{:#}", self.from, self.to))
         } else {
             f.write_fmt(format_args!("({:})..({:})", self.from, self.to))
         }
@@ -107,14 +97,14 @@ impl fmt::Display for TokenLiteral {
 impl fmt::Display for TokenPunctuation {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            TokenPunctuation::Add => f.write_char('+'),
+            TokenPunctuation::Plus => f.write_char('+'),
             TokenPunctuation::Bang => f.write_char('!'),
             TokenPunctuation::BangEqual => f.write_str("!="),
             TokenPunctuation::Colon => f.write_char(':'),
             TokenPunctuation::Comma => f.write_char(','),
             TokenPunctuation::Equal => f.write_char('='),
             TokenPunctuation::EqualEqual => f.write_str("=="),
-            TokenPunctuation::Indentation => f.write_char(' '),
+            TokenPunctuation::Indentation => f.write_str("'  '"),
             TokenPunctuation::Minus => f.write_char('-'),
             TokenPunctuation::Newline => f.write_str("\\n"),
             TokenPunctuation::ParenOpen => f.write_char('('),

@@ -1,7 +1,7 @@
 use core::fmt;
-use std::ops::{Range, Sub};
+use std::ops::Range;
 
-use crate::lexer::span::{Span, SpanRange};
+use crate::lexer::span::Span;
 
 pub fn ctx_line(base: &str, offset: usize) -> &str {
     &base[extract_line_info(base, offset).2]
@@ -54,17 +54,13 @@ pub fn raise_at(base: &str, offset: usize, msg: impl fmt::Display) -> ! {
     raise_format(line, &base[range], msg, col, 1)
 }
 
-pub fn raise_span(base: &str, span: Span, msg: impl fmt::Display) -> ! {
-    raise_at(base, span.offset, msg)
-}
-
-pub fn raise_range(base: &str, span: SpanRange, msg: impl fmt::Display) -> ! {
-    let (line, col, range) = extract_line_info(base, span.from.offset);
+pub fn raise_range(base: &str, span: Span, msg: impl fmt::Display) -> ! {
+    let (line, col, range) = extract_line_info(base, span.from);
     raise_format(
         line,
         &base[range],
         msg,
         col,
-        span.to.offset.sub(span.from.offset).max(1),
+        span.to.saturating_sub(span.from).max(1),
     )
 }

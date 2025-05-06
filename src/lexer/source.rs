@@ -1,200 +1,62 @@
 use core::fmt;
 use std::backtrace::Backtrace;
-use std::ops;
 
+use ariadne::{Config, Label, Report, ReportKind, Source};
+use winnow::LocatingSlice;
 use winnow::error::{AddContext, ParserError};
-use winnow::stream::{AsChar, FindSlice, Offset, Stream, StreamIsPartial};
+use winnow::stream::{Location, Stream};
 
-use crate::common::error::{ctx_line, raise_span};
+use super::span::Span;
 
-use super::span::{Span, SpanRange};
-
-#[derive(Debug, Clone)]
-pub struct SourceLexer<T> {
-    base: T,
-    data: T,
-    last_col: usize,
-    pub line: usize,
-    pub col: usize,
-    pub offset: usize,
-}
+pub type SourceLexer<'i> = LocatingSlice<&'i str>;
+pub type LexerResult<'i, T = ()> = Result<T, LexerError<'i>>;
 
 #[derive(Debug)]
-pub struct LexerError {
+pub struct LexerError<'i> {
+    base: &'i str,
     span: Span,
-    labels: Vec<(SpanRange, String, String)>,
+    labels: Vec<(Span, String)>,
     backtrace: Backtrace,
 }
 
-impl<'i> SourceLexer<&'i str> {
-    pub fn new(data: &'i str) -> Self {
-        Self {
-            data,
-            base: data,
-            last_col: 0,
-            line: 0,
-            col: 0,
-            offset: 0,
-        }
+pub trait SourceLexerExt<'i> {
+    fn base(&self) -> &'i str;
+    fn span(&self) -> Span;
+    fn error(&self, msg: impl fmt::Display) -> !;
+}
+
+impl<'i> SourceLexerExt<'i> for SourceLexer<'i> {
+    fn base(&self) -> &'i str {
+        let mut base = self.clone();
+        base.reset_to_start();
+        *base
     }
 
-    /// Get span of current token.
-    /// Or previous if is newline
-    pub fn span(&self) -> Span {
-        if &self.base[self.offset..self.base.len().min(self.offset + 1)] == "\n" {
-            let (line, col) = if self.col == 0 {
-                (self.line.saturating_sub(1), self.last_col)
-            } else {
-                (self.line, unsafe { self.col.unchecked_sub(1) })
-            };
-
-            Span {
-                line,
-                col,
-                offset: self.offset.saturating_sub(1),
-            }
-        } else {
-            Span {
-                line: self.line,
-                col: self.col,
-                offset: self.offset,
-            }
-        }
+    fn span(&self) -> Span {
+        Span::char(self.current_token_start())
     }
 
-    pub fn error(&self, msg: impl fmt::Display) -> ! {
-        let span = self.span();
-        raise_span(self.base, span, msg)
+    fn error(&self, msg: impl fmt::Display) -> ! {
+        _ = Report::build(ReportKind::Error, self.span())
+            .with_message(&msg)
+            .with_label(
+                Label::new(self.span())
+                    .with_message(msg)
+                    .with_color(ariadne::Color::BrightRed),
+            )
+            .finish()
+            .eprint(Source::from(self.base()));
+
+        std::process::exit(1);
     }
 }
 
-impl<T> ops::Deref for SourceLexer<T> {
-    type Target = T;
-
-    fn deref(&self) -> &Self::Target {
-        &self.data
-    }
-}
-
-impl<U, T: AsRef<U>> AsRef<U> for SourceLexer<T> {
-    fn as_ref(&self) -> &U {
-        self.data.as_ref()
-    }
-}
-
-impl<T> Offset<SourceLexer<T>> for SourceLexer<T> {
-    fn offset_from(&self, start: &SourceLexer<T>) -> usize {
-        self.offset - start.offset
-    }
-}
-
-impl<U: Clone, T: FindSlice<U>> FindSlice<U> for SourceLexer<T> {
-    fn find_slice(&self, substr: U) -> Option<ops::Range<usize>> {
-        self.data.find_slice(substr)
-    }
-}
-
-impl<T: StreamIsPartial> StreamIsPartial for SourceLexer<T> {
-    type PartialState = T::PartialState;
-
-    fn complete(&mut self) -> Self::PartialState {
-        self.data.complete()
-    }
-
-    fn restore_partial(&mut self, state: Self::PartialState) {
-        self.data.restore_partial(state);
-    }
-
-    fn is_partial_supported() -> bool {
-        T::is_partial_supported()
-    }
-}
-
-impl<'i> Stream for SourceLexer<&'i str> {
-    type Token = char;
-    type Slice = <&'i str as Stream>::Slice;
-    type IterOffsets = <&'i str as Stream>::IterOffsets;
-    type Checkpoint = SourceLexer<&'i str>;
-
-    fn iter_offsets(&self) -> Self::IterOffsets {
-        self.data.iter_offsets()
-    }
-
-    fn eof_offset(&self) -> usize {
-        self.data.eof_offset()
-    }
-
-    fn next_token(&mut self) -> Option<Self::Token> {
-        let next = self.data.peek_token()?;
-
-        self.data = &self.data[next.len()..];
-        self.offset += 1;
-
-        if next == '\n' {
-            self.line += 1;
-            self.last_col = self.col;
-            self.col = 0;
-        } else {
-            self.col += 1;
-        }
-
-        Some(next)
-    }
-
-    fn peek_token(&self) -> Option<Self::Token> {
-        self.data.peek_token()
-    }
-
-    fn offset_for<P>(&self, predicate: P) -> Option<usize>
-    where
-        P: Fn(Self::Token) -> bool,
-    {
-        self.data.offset_for(predicate)
-    }
-
-    fn offset_at(&self, tokens: usize) -> Result<usize, winnow::error::Needed> {
-        self.data.offset_at(tokens)
-    }
-
-    fn next_slice(&mut self, offset: usize) -> Self::Slice {
-        let slice = self.data.next_slice(offset);
-
-        for token in slice.chars() {
-            self.offset += 1;
-            if token == '\n' {
-                self.line += 1;
-                self.last_col = self.col;
-                self.col = 0;
-            } else {
-                self.col += 1;
-            }
-        }
-
-        slice
-    }
-
-    fn peek_slice(&self, offset: usize) -> Self::Slice {
-        self.data.peek_slice(offset)
-    }
-
-    fn checkpoint(&self) -> Self::Checkpoint {
-        self.clone()
-    }
-
-    fn reset(&mut self, checkpoint: &Self::Checkpoint) {
-        *self = checkpoint.clone();
-    }
-
-    fn raw(&self) -> &dyn fmt::Debug {
-        self.data.raw()
-    }
-}
-
-impl<'i> ParserError<SourceLexer<&'i str>> for LexerError {
+impl<'i> ParserError<SourceLexer<'i>> for LexerError<'i> {
     type Inner = Self;
 
-    fn from_input(input: &SourceLexer<&'i str>) -> Self {
+    fn from_input(input: &SourceLexer<'i>) -> Self {
         Self {
+            base: input.base(),
             span: input.span(),
             labels: Vec::new(),
             backtrace: Backtrace::force_capture(),
@@ -206,22 +68,18 @@ impl<'i> ParserError<SourceLexer<&'i str>> for LexerError {
     }
 }
 
-impl<'i, C: ToString> AddContext<SourceLexer<&'i str>, C> for LexerError {
+impl<'i, C: ToString> AddContext<SourceLexer<'i>, C> for LexerError<'i> {
     fn add_context(
         self,
-        input: &SourceLexer<&'i str>,
-        _token_start: &SourceLexer<&'i str>,
+        input: &SourceLexer<'i>,
+        _token_start: &<SourceLexer<'i> as Stream>::Checkpoint,
         context: C,
     ) -> Self {
         let mut labels = self.labels.clone();
-        let span = self.span.range_to(input.span());
-        labels.push((
-            span,
-            ctx_line(&input.base, span.from.offset).to_owned(),
-            context.to_string(),
-        ));
+        labels.push((input.span(), context.to_string()));
 
         Self {
+            base: self.base,
             span: self.span,
             labels,
             backtrace: self.backtrace,
@@ -229,26 +87,16 @@ impl<'i, C: ToString> AddContext<SourceLexer<&'i str>, C> for LexerError {
     }
 }
 
-impl fmt::Display for LexerError {
+impl<'i> fmt::Display for LexerError<'i> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if self.labels.is_empty() {
-            writeln!(f, "\x1b[31;1mUnexpected error at {:#?}", self.span)?;
-        } else {
-            for (span, ctx, msg) in &self.labels {
-                let line_align = span.to.line.to_string().len();
-
-                let cursor_offset = " ".repeat(span.from.col);
-                let cursor = "~".repeat(span.to.col - span.from.col + 1);
-
-                writeln!(f, "\x1b[31merror: \x1b[1m{msg}\x1b[0m")?;
-                writeln!(f, "\x1b[36m {} \x1b[34m| \x1b[0m{ctx}", span.from.line)?;
-                writeln!(
-                    f,
-                    "\x1b[36m {:line_align$} \x1b[34m| \x1b[31m{cursor_offset}{cursor}\x1b[0m",
-                    ""
-                )?;
-            }
-        }
+        _ = Report::build(ReportKind::Error, self.span)
+            .with_labels(
+                self.labels
+                    .iter()
+                    .map(|(span, msg)| Label::new(*span).with_message(msg)),
+            )
+            .finish()
+            .eprint(Source::from(self.base));
 
         let backtrace = self.backtrace.to_string();
 

@@ -8,21 +8,20 @@ pub mod utils;
 
 use std::collections::VecDeque;
 
-use source::{LexerError, SourceLexer};
-use span::Span;
+use ariadne::{Color, Fmt};
+use source::{LexerResult, SourceLexer, SourceLexerExt};
+use span::{IntoSpan, Span};
 use token::{SpannedToken, Token, TokenKeyword, TokenLiteral, TokenPunctuation};
 use utils::eat_spaces;
 use winnow::Parser;
-use winnow::combinator::peek;
+use winnow::combinator::{alt, delimited, peek};
 use winnow::stream::AsChar;
-use winnow::token::{any, take, take_until, take_while};
-
-pub type LexerResult<T = ()> = core::result::Result<T, LexerError>;
+use winnow::token::{any, take_while};
 
 pub struct Lexer;
 
 impl Lexer {
-    pub fn from_str(input: &str) -> LexerResult<VecDeque<SpannedToken>> {
+    pub fn from_str<'i>(input: &'i str) -> LexerResult<'i, VecDeque<SpannedToken>> {
         let mut input = SourceLexer::new(input);
         let mut tokens = VecDeque::new();
 
@@ -34,10 +33,10 @@ impl Lexer {
         Ok(tokens)
     }
 
-    fn next_token(
+    fn next_token<'i>(
         tokens: &mut VecDeque<SpannedToken>,
-        input: &mut SourceLexer<&str>,
-    ) -> LexerResult<bool> {
+        input: &mut SourceLexer<'i>,
+    ) -> LexerResult<'i, bool> {
         let Ok(char) = peek(any::<_, ()>).parse_next(input) else {
             return Ok(false);
         };
@@ -54,50 +53,39 @@ impl Lexer {
             return Ok(true);
         }
 
-        // Eat the peeked char
-        let span = input.span();
-        _ = any::<_, ()>(input);
-
         // Starts with double quote
         if char == '"' {
-            Self::token_string(span, tokens, input)?;
+            Self::token_string(tokens, input)?;
             return Ok(true);
         }
 
-        let token = match char {
-            '+' => TokenPunctuation::Add,
-            ':' => TokenPunctuation::Colon,
-            ',' => TokenPunctuation::Comma,
-            ' ' => TokenPunctuation::Indentation,
-            '-' => TokenPunctuation::Minus,
-            '\n' => TokenPunctuation::Newline,
-            '(' => TokenPunctuation::ParenOpen,
-            ')' => TokenPunctuation::ParenClose,
-            '#' => TokenPunctuation::Pound,
-            '/' => TokenPunctuation::Slash,
-            '*' => TokenPunctuation::Star,
-
-            '!' => match peek(any::<_, ()>).parse_next(input) {
-                Ok('=') => {
-                    _ = any::<_, ()>(input);
-                    TokenPunctuation::BangEqual
-                }
-                _ => TokenPunctuation::Bang,
-            },
-            '=' => match peek(any::<_, ()>).parse_next(input) {
-                Ok('=') => {
-                    _ = any::<_, ()>(input);
-                    TokenPunctuation::EqualEqual
-                }
-                _ => TokenPunctuation::Equal,
-            },
-            _ => input.error(format!("Unexpected char: {char:#?}")),
-        };
-
-        let span = span.range_to(input.span());
+        // Eat the peeked char
+        let (token, span) = alt([
+            "!=".value(TokenPunctuation::BangEqual),
+            "!".value(TokenPunctuation::Bang),
+            ":".value(TokenPunctuation::Colon),
+            ",".value(TokenPunctuation::Comma),
+            "==".value(TokenPunctuation::EqualEqual),
+            "=".value(TokenPunctuation::Equal),
+            "  ".value(TokenPunctuation::Indentation),
+            "-".value(TokenPunctuation::Minus),
+            "\n".value(TokenPunctuation::Newline),
+            "+".value(TokenPunctuation::Plus),
+            "/".value(TokenPunctuation::Slash),
+            "*".value(TokenPunctuation::Star),
+        ])
+        .with_span()
+        .map(|(tk, span)| (tk, Span::from(span)))
+        .parse_next(input)
+        .unwrap_or_else(|_: ()| {
+            input.error(format!(
+                "Unexpected char: {}",
+                format!("{char:#?}").fg(Color::BrightRed)
+            ))
+        });
 
         // Don't eat indentation
-        if token != TokenPunctuation::Newline {
+        if token != TokenPunctuation::Newline && token != TokenPunctuation::Indentation {
             eat_spaces(input)?;
         }
 
@@ -109,13 +97,14 @@ impl Lexer {
         Ok(true)
     }
 
-    fn token_ident(
+    fn token_ident<'i>(
         tokens: &mut VecDeque<SpannedToken>,
-        input: &mut SourceLexer<&str>,
-    ) -> LexerResult<()> {
-        let span = input.span();
-        let ident = take_while(1.., |c: char| c.is_alphanumeric() || c == '_').parse_next(input)?;
-        let span = span.range_to(input.span());
+        input: &mut SourceLexer<'i>,
+    ) -> LexerResult<'i> {
+        let (ident, span) = take_while(1.., |c: char| c.is_alphanumeric() || c == '_')
+            .with_span()
+            .map(IntoSpan::into_span)
+            .parse_next(input)?;
 
         let token = match ident {
             "nil" => Token::Literal(TokenLiteral::Nil),
@@ -135,13 +124,14 @@ impl Lexer {
         eat_spaces(input)
     }
 
-    fn token_number(
+    fn token_number<'i>(
         tokens: &mut VecDeque<SpannedToken>,
-        input: &mut SourceLexer<&str>,
-    ) -> LexerResult<()> {
-        let span = input.span();
-        let num = take_while(1.., AsChar::is_dec_digit).parse_next(input)?;
-        let span = span.range_to(input.span());
+        input: &mut SourceLexer<'i>,
+    ) -> LexerResult<'i> {
+        let (num, span) = take_while(1.., AsChar::is_dec_digit)
+            .with_span()
+            .map(IntoSpan::into_span)
+            .parse_next(input)?;
 
         tokens.push_back(SpannedToken {
             span,
@@ -151,15 +141,14 @@ impl Lexer {
         eat_spaces(input)
     }
 
-    fn token_string(
-        span: Span,
+    fn token_string<'i>(
         tokens: &mut VecDeque<SpannedToken>,
-        input: &mut SourceLexer<&str>,
-    ) -> LexerResult<()> {
-        let str = take_until(1.., "\"").parse_next(input)?;
-        take(1usize).parse_next(input)?;
-
-        let span = span.range_to(input.span());
+        input: &mut SourceLexer<'i>,
+    ) -> LexerResult<'i> {
+        let (str, span) = delimited('"', take_while(0.., |c| c != '"'), '"')
+            .with_span()
+            .map(IntoSpan::into_span)
+            .parse_next(input)?;
 
         tokens.push_back(SpannedToken {
             span,

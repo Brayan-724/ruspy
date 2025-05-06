@@ -1,36 +1,53 @@
-#[derive(Clone, Copy, Debug)]
-pub struct Span {
-    pub line: usize,
-    pub col: usize,
-    pub offset: usize,
-}
+use std::ops::Range;
 
 #[derive(Clone, Copy, Debug)]
-pub struct SpanRange {
-    pub from: Span,
-    pub to: Span,
+pub struct Span {
+    pub from: usize,
+    pub to: usize,
+}
+
+pub trait IntoSpan<V> {
+    fn into_span(self) -> V;
+}
+
+impl ariadne::Span for Span {
+    type SourceId = ();
+
+    fn source(&self) -> &Self::SourceId {
+        &()
+    }
+
+    fn start(&self) -> usize {
+        self.from
+    }
+
+    fn end(&self) -> usize {
+        self.to
+    }
+}
+
+impl From<Range<usize>> for Span {
+    fn from(value: Range<usize>) -> Self {
+        Self {
+            from: value.start,
+            to: value.end,
+        }
+    }
 }
 
 impl Span {
-    pub fn zeroed() -> Self {
+    pub const ZERO: Self = Self { from: 0, to: 0 };
+
+    pub const fn char(offset: usize) -> Self {
         Self {
-            line: 0,
-            col: 0,
-            offset: 0,
+            from: offset,
+            to: offset + 1,
         }
     }
+}
 
-    pub fn range_to(self, span: Span) -> SpanRange {
-        if span.offset > self.offset {
-            SpanRange {
-                from: self,
-                to: span,
-            }
-        } else {
-            SpanRange {
-                from: span,
-                to: self,
-            }
-        }
+impl<T> IntoSpan<(T, Span)> for (T, Range<usize>) {
+    fn into_span(self) -> (T, Span) {
+        (self.0, Span::from(self.1))
     }
 }
