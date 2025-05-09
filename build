@@ -8,4 +8,8 @@ def "main run" [path: path] {
   cargo run --bin main -- $path
 }
 
+def "main lexer" [path: path] {
+  cargo run --bin lexer -- $path
+}
+
 def "main" [] { }

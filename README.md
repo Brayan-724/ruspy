@@ -14,3 +14,8 @@ cargo test --no-fail-fast --lib --verbose $test -- --nocapture
 ```bash
 cargo run --bin main -- $path
 ```
+
+### ./build lexer $path
+```bash
+cargo run --bin lexer -- $path
+```
