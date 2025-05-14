@@ -12,4 +12,8 @@ def "main lexer" [path: path] {
   cargo run --bin lexer -- $path
 }
 
+def "main ast" [path: path] {
+  cargo run --bin ast -- $path
+}
+
 def "main" [] { }

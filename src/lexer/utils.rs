@@ -18,6 +18,12 @@ macro_rules! ident {
     (@raw $i:literal) => {
         String::from($i)
     };
+    (@ast $i:ident) => {
+        $crate::ast::node::AstExpr::Ident(String::from(stringify!($i)))
+    };
+    (@ast $i:literal) => {
+        $crate::ast::node::AstExpr::Ident(String::from($i))
+    };
     ($i:ident) => {
         $crate::lexer::token::Token::Ident(ident!(@raw $i))
     };
@@ -30,6 +36,9 @@ macro_rules! ident {
 macro_rules! literal {
     (@raw $i:expr) => {
         Into::<$crate::lexer::token::TokenLiteral>::into($i)
+    };
+    (@ast $i:expr) => {
+        $crate::ast::node::AstExpr::Literal(Into::<$crate::lexer::token::TokenLiteral>::into($i))
     };
     ($i:expr) => {
         $crate::lexer::token::Token::Literal(Into::<$crate::lexer::token::TokenLiteral>::into($i))
