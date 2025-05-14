@@ -25,10 +25,10 @@ macro_rules! ident {
         $crate::ast::node::AstExpr::Ident(String::from($i))
     };
     ($i:ident) => {
-        $crate::lexer::token::Token::Ident(String::from(stringify!($i)))
+        $crate::lexer::token::Token::Ident(ident!(@raw $i))
     };
     ($i:literal) => {
-        $crate::lexer::token::Token::Token::Ident(String::from($i))
+        $crate::lexer::token::Token::Ident(ident!(@raw $i))
     };
 }
 
@@ -51,7 +51,7 @@ macro_rules! T {
         $crate::lexer::token::TokenPunctuation::$i
     };
     ($i:ident) => {
-        $crate::lexer::token::Token::Punctuation($crate::lexer::token::TokenPunctuation::$i)
+        $crate::lexer::token::Token::Punctuation(T![@raw $i])
     };
 }
 
@@ -61,7 +61,7 @@ macro_rules! kw {
         $crate::lexer::token::TokenKeyword::$i
     };
     ($i:ident) => {
-        $crate::lexer::token::Token::Keyword($crate::lexer::token::TokenKeyword::$i)
+        $crate::lexer::token::Token::Keyword(kw!(@raw $i))
     };
 }
 

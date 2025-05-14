@@ -70,20 +70,13 @@ impl<'i> ParserError<SourceLexer<'i>> for LexerError<'i> {
 
 impl<'i, C: ToString> AddContext<SourceLexer<'i>, C> for LexerError<'i> {
     fn add_context(
-        self,
+        mut self,
         input: &SourceLexer<'i>,
         _token_start: &<SourceLexer<'i> as Stream>::Checkpoint,
         context: C,
     ) -> Self {
-        let mut labels = self.labels.clone();
-        labels.push((input.span(), context.to_string()));
-
-        Self {
-            base: self.base,
-            span: self.span,
-            labels,
-            backtrace: self.backtrace,
-        }
+        self.labels.push((input.span(), context.to_string()));
+        self
     }
 }
 

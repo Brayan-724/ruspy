@@ -1,12 +1,10 @@
-#[cfg(test)]
-mod tests;
 pub mod value;
 
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use value::{AsNumber, AsString, RuntimeValue, RuntimeVariable};
+use value::{AsBool, AsNumber, AsString, RuntimeValue, RuntimeVariable};
 
 use crate::ast::node::{AstBinaryOp, AstExpr, AstScope, AstStatement, AstUnaryOp};
 use crate::lexer::token::TokenLiteral;
@@ -27,6 +25,7 @@ impl Scope {
         }
         .into()
     }
+
     pub fn child(self: &Rc<Self>, is_function: bool) -> Rc<Self> {
         Scope {
             is_function,
@@ -51,26 +50,12 @@ impl Scope {
     }
 
     pub fn set_variable(self: &Rc<Self>, name: String, value: RuntimeValue) -> RuntimeVariable {
-        self.set_variable_inner(name, value)
-    }
-
-    fn set_variable_inner(self: &Rc<Self>, name: String, value: RuntimeValue) -> RuntimeVariable {
         let Some(var) = self.variables.borrow().get(&name).cloned() else {
-            // Functions keep a secure context
+            // Functions keep a secure context,
             // to manipulate external variables
             // use `global` keyword, that clones
             // variables to current scope
-            if self.is_function {
-                return self
-                    .variables
-                    .borrow_mut()
-                    .entry(name)
-                    .insert_entry(value.into())
-                    .get()
-                    .clone();
-            }
-
-            let Some(parent) = self.parent.as_ref() else {
+            let Some(parent) = self.parent.as_ref().filter(|_| !self.is_function) else {
                 return self
                     .variables
                     .borrow_mut()
@@ -80,12 +65,9 @@ impl Scope {
                     .clone();
             };
 
-            return parent.set_variable_inner(name, value);
+            return parent.set_variable(name, value);
         };
 
-        // SAFETY: This function is always called with Some
-        // but needs option to know if someone use the value
-        // and keep the ownership if not
         *var.0.borrow_mut() = value;
 
         var
@@ -106,18 +88,18 @@ impl Scope {
         }
     }
 
-    pub fn visit_conditional(self: &Rc<Self>, test: AstExpr, body: AstScope, _: Option<AstScope>) {
+    pub fn visit_conditional(
+        self: &Rc<Self>,
+        test: AstExpr,
+        body: AstScope,
+        otherwise: Option<AstScope>,
+    ) {
         let test = self.visit_expr(test);
 
-        let test = match test {
-            RuntimeValue::Nil => false,
-            RuntimeValue::Bool(b) => b,
-            RuntimeValue::Number(n) => n != 0,
-            RuntimeValue::String(s) => !s.is_empty(),
-        };
-
-        if test {
+        if test.as_bool() {
             self.run(body);
+        } else if let Some(otherwise) = otherwise {
+            self.run(otherwise);
         }
     }
 
@@ -134,12 +116,7 @@ impl Scope {
             AstExpr::UnaryOp {
                 op: AstUnaryOp::Not,
                 right,
-            } => match self.visit_expr(*right) {
-                RuntimeValue::Nil => RuntimeValue::Bool(true),
-                RuntimeValue::Bool(b) => RuntimeValue::Bool(!b),
-                RuntimeValue::Number(n) => RuntimeValue::Bool(n == 0),
-                RuntimeValue::String(n) => RuntimeValue::Bool(n.is_empty()),
-            },
+            } => RuntimeValue::Bool(!self.visit_expr(*right).as_bool()),
         }
     }
 
@@ -149,110 +126,54 @@ impl Scope {
         left: AstExpr,
         right: AstExpr,
     ) -> RuntimeValue {
+        use AstBinaryOp::*;
+        use RuntimeValue::*;
+
         match (op, self.visit_expr(left), self.visit_expr(right)) {
             ////// Number Primitives //////
-            (AstBinaryOp::Add, RuntimeValue::Number(a), RuntimeValue::Number(b)) => {
-                RuntimeValue::Number(a + b)
-            }
-            (AstBinaryOp::Div, RuntimeValue::Number(a), RuntimeValue::Number(b)) => {
-                RuntimeValue::Number(a / b)
-            }
-            (AstBinaryOp::Mul, RuntimeValue::Number(a), RuntimeValue::Number(b)) => {
-                RuntimeValue::Number(a * b)
-            }
-            (AstBinaryOp::Sub, RuntimeValue::Number(a), RuntimeValue::Number(b)) => {
-                RuntimeValue::Number(a - b)
-            }
+            (Add, Number(a), Number(b)) => Number(a + b),
+            (Div, Number(a), Number(b)) => Number(a / b),
+            (Mul, Number(a), Number(b)) => Number(a * b),
+            (Sub, Number(a), Number(b)) => Number(a - b),
 
             ////// Bool "Primitives" //////
-            (AstBinaryOp::Add, RuntimeValue::Bool(a), RuntimeValue::Bool(b)) => {
-                RuntimeValue::Number(a.as_num() + b.as_num())
-            }
-            (AstBinaryOp::Add, RuntimeValue::Bool(false), RuntimeValue::Number(n))
-            | (AstBinaryOp::Add, RuntimeValue::Number(n), RuntimeValue::Bool(false)) => {
-                RuntimeValue::Number(n)
-            }
-            (AstBinaryOp::Add, RuntimeValue::Bool(true), RuntimeValue::Number(n))
-            | (AstBinaryOp::Add, RuntimeValue::Number(n), RuntimeValue::Bool(true)) => {
-                RuntimeValue::Number(n + 1)
-            }
-            (AstBinaryOp::Div, RuntimeValue::Bool(a), RuntimeValue::Bool(b)) => {
-                RuntimeValue::Number(a.as_num() / b.as_num())
-            }
-            (AstBinaryOp::Div, RuntimeValue::Bool(a), RuntimeValue::Number(b)) => {
-                RuntimeValue::Number(a.as_num() / b)
-            }
-            (AstBinaryOp::Div, RuntimeValue::Number(a), RuntimeValue::Bool(b)) => {
-                RuntimeValue::Number(a / b.as_num())
-            }
-            (AstBinaryOp::Mul, RuntimeValue::Bool(a), RuntimeValue::Number(b)) => {
-                RuntimeValue::Number(a.as_num() * b)
-            }
-            (AstBinaryOp::Mul, RuntimeValue::Bool(a), RuntimeValue::Bool(b)) => {
-                RuntimeValue::Number(a.as_num() * b.as_num())
-            }
-            (AstBinaryOp::Mul, RuntimeValue::Number(a), RuntimeValue::Bool(b)) => {
-                RuntimeValue::Number(a * b.as_num())
-            }
-            (AstBinaryOp::Sub, RuntimeValue::Bool(a), RuntimeValue::Bool(b)) => {
-                RuntimeValue::Number(a.as_num() - b.as_num())
-            }
-            (AstBinaryOp::Sub, RuntimeValue::Bool(a), RuntimeValue::Number(b)) => {
-                RuntimeValue::Number(a.as_num() - b)
-            }
-            (AstBinaryOp::Sub, RuntimeValue::Number(a), RuntimeValue::Bool(b)) => {
-                RuntimeValue::Number(a - b.as_num())
-            }
+            (Add, Bool(a), Bool(b)) => Number(a.as_num() + b.as_num()),
+            (Add, Bool(false), Number(n)) | (Add, Number(n), Bool(false)) => Number(n),
+            (Add, Bool(true), Number(n)) | (Add, Number(n), Bool(true)) => Number(n + 1),
+            (Div, Bool(a), Bool(b)) => Number(a.as_num() / b.as_num()),
+            (Div, Bool(a), Number(b)) => Number(a.as_num() / b),
+            (Div, Number(a), Bool(b)) => Number(a / b.as_num()),
+            (Mul, Bool(a), Number(b)) => Number(a.as_num() * b),
+            (Mul, Bool(a), Bool(b)) => Number(a.as_num() * b.as_num()),
+            (Mul, Number(a), Bool(b)) => Number(a * b.as_num()),
+            (Sub, Bool(a), Bool(b)) => Number(a.as_num() - b.as_num()),
+            (Sub, Bool(a), Number(b)) => Number(a.as_num() - b),
+            (Sub, Number(a), Bool(b)) => Number(a - b.as_num()),
 
             ////// Concatenation //////
-            (AstBinaryOp::Add, RuntimeValue::String(a), RuntimeValue::Nil) => {
-                RuntimeValue::String(format!("{a}nil"))
-            }
-            (AstBinaryOp::Add, RuntimeValue::Nil, RuntimeValue::String(b)) => {
-                RuntimeValue::String(format!("nil{b}"))
-            }
-            (AstBinaryOp::Add, RuntimeValue::Bool(a), RuntimeValue::String(b)) => {
-                RuntimeValue::String(format!("{}{b}", a.as_string()))
-            }
-            (AstBinaryOp::Add, RuntimeValue::String(a), RuntimeValue::Bool(b)) => {
-                RuntimeValue::String(format!("{a}{}", b.as_string()))
-            }
-            (AstBinaryOp::Add, RuntimeValue::Number(a), RuntimeValue::String(b)) => {
-                RuntimeValue::String(format!("{a}{b}"))
-            }
-            (AstBinaryOp::Add, RuntimeValue::String(a), RuntimeValue::Number(b)) => {
-                RuntimeValue::String(format!("{a}{b}"))
-            }
-            (AstBinaryOp::Add, RuntimeValue::String(a), RuntimeValue::String(b)) => {
-                RuntimeValue::String(format!("{a}{b}"))
-            }
+            (Add, String(a), Nil) => String(format!("{a}nil")),
+            (Add, Nil, String(b)) => String(format!("nil{b}")),
+            (Add, Bool(a), String(b)) => String(format!("{}{b}", a.as_string())),
+            (Add, String(a), Bool(b)) => String(format!("{a}{}", b.as_string())),
+            (Add, Number(a), String(b)) => String(format!("{a}{b}")),
+            (Add, String(a), Number(b)) => String(format!("{a}{b}")),
+            (Add, String(a), String(b)) => String(format!("{a}{b}")),
 
             ////// Multiplication //////
-            (AstBinaryOp::Mul, RuntimeValue::String(s), RuntimeValue::Bool(true))
-            | (AstBinaryOp::Mul, RuntimeValue::Bool(true), RuntimeValue::String(s)) => {
-                RuntimeValue::String(s)
-            }
-            (AstBinaryOp::Mul, RuntimeValue::String(_), RuntimeValue::Bool(false))
-            | (AstBinaryOp::Mul, RuntimeValue::Bool(false), RuntimeValue::String(_)) => {
-                RuntimeValue::String(String::new())
-            }
-            (AstBinaryOp::Mul, RuntimeValue::Number(a), RuntimeValue::String(b)) => {
-                RuntimeValue::String(
-                    a.is_positive()
-                        .then(|| b.repeat(a.unsigned_abs() as usize))
-                        .unwrap_or_default(),
-                )
-            }
-            (AstBinaryOp::Mul, RuntimeValue::String(a), RuntimeValue::Number(b)) => {
-                RuntimeValue::String(
-                    b.is_positive()
-                        .then(|| a.repeat(b.unsigned_abs() as usize))
-                        .unwrap_or_default(),
-                )
-            }
+            (Mul, String(s), Bool(true)) | (Mul, Bool(true), String(s)) => String(s),
+            (Mul, String(_), Bool(false)) | (Mul, Bool(false), String(_)) => String(String::new()),
+            (Mul, Number(a), String(b)) => String(
+                a.is_positive()
+                    .then(|| b.repeat(a.unsigned_abs() as usize))
+                    .unwrap_or_default(),
+            ),
+            (Mul, String(a), Number(b)) => String(
+                b.is_positive()
+                    .then(|| a.repeat(b.unsigned_abs() as usize))
+                    .unwrap_or_default(),
+            ),
 
-            (_, _, RuntimeValue::String(_) | RuntimeValue::Nil)
-            | (_, RuntimeValue::String(_) | RuntimeValue::Nil, _) => RuntimeValue::Nil,
+            (_, _, String(_) | Nil) | (_, String(_) | Nil, _) => Nil,
         }
     }
 

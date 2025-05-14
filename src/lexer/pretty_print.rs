@@ -86,7 +86,7 @@ impl fmt::Display for TokenLiteral {
             TokenLiteral::Bool(true) => f.write_fmt(format_args!("{LITERAL}True"))?,
             TokenLiteral::Bool(false) => f.write_fmt(format_args!("{LITERAL}False"))?,
             TokenLiteral::Number(n) => f.write_fmt(format_args!("{LITERAL}{n}"))?,
-            TokenLiteral::String(s) => f.write_fmt(format_args!("{LITERAL}{s:?}"))?,
+            TokenLiteral::String(s) => f.write_fmt(format_args!("{STRING}{s:?}"))?,
         }
         f.write_str(R)
     }
@@ -105,9 +105,6 @@ impl fmt::Display for TokenPunctuation {
             TokenPunctuation::Indentation => f.write_str("'  '"),
             TokenPunctuation::Minus => f.write_char('-'),
             TokenPunctuation::Newline => f.write_str("\\n"),
-            TokenPunctuation::ParenOpen => f.write_char('('),
-            TokenPunctuation::ParenClose => f.write_char(')'),
-            TokenPunctuation::Pound => f.write_char('#'),
             TokenPunctuation::Slash => f.write_char('/'),
             TokenPunctuation::Star => f.write_char('*'),
         }

@@ -11,9 +11,10 @@ fn main() {
         .unwrap_or_else(|err| panic!("Cannot read {file_path:?}: {err}"));
 
     println!(" -- LEXER --");
-    let tokens = Lexer::from_str(&file_content).expect("Cannot parse");
 
-    Lexer::pretty_print(&tokens);
+    let tokens = Lexer::from_str(&file_content)
+        .inspect(Lexer::pretty_print)
+        .unwrap_or_else(|err| panic!("{err:#?}"));
 
     println!(" -- AST --");
 

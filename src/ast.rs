@@ -20,20 +20,6 @@ impl AstScope {
     }
 }
 
-macro_rules! peek_stmt {
-    ($source:ident($level:expr): | $peek:ident, $tk:ident | $expr:expr) => {{
-        let mut $peek = $source.clone();
-
-        $peek
-            .parse_pre_statement($level)
-            .then(|| $peek.tokens.pop_front())
-            .flatten()
-            .and_then(|$tk| $expr)
-            // Update global source state if found something
-            .inspect(|_| *$source = $peek)
-    }};
-}
-
 macro_rules! fn_bin_op {
     ($fn:ident, $base:ident; $($tk:ident => $op:ident),+  ) => {
         fn $fn(&mut self) -> AstExpr {
@@ -57,10 +43,14 @@ macro_rules! fn_bin_op {
                 _ => unreachable!(),
             };
 
+            let right = tokens.$fn().into();
+
+            *self = tokens;
+
             AstExpr::BinaryOp {
                 op,
                 left,
-                right: tokens.$fn().into(),
+                right,
             }
         }
     };
@@ -136,6 +126,20 @@ impl SourceAst<'_> {
         }
     }
 
+    fn peek_stmt<T>(
+        &mut self,
+        level: usize,
+        callback: impl Fn(&mut SourceAst<'_>, SpannedToken) -> Option<T>,
+    ) -> Option<T> {
+        let mut peek = self.clone();
+
+        peek.parse_pre_statement(level)
+            .then(|| peek.tokens.pop_front())
+            .flatten()
+            .and_then(|tk| callback(&mut peek, tk))
+            .inspect(move |_| *self = peek)
+    }
+
     fn parse_statement(&mut self, level: usize) -> AstStatement {
         let first = self.peek_expect();
 
@@ -206,7 +210,7 @@ impl SourceAst<'_> {
 
         let body = self.parse_scope(level + 1);
 
-        let otherwise = peek_stmt!(self(level): |source, keyword| match keyword.token {
+        let otherwise = self.peek_stmt(level, |source, keyword| match keyword.token {
             kw!(Else) => {
                 source.expect_token(T![Colon]);
 

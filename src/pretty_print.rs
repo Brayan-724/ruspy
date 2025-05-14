@@ -6,4 +6,3 @@ pub const STRING: &str = "\x1b[35m";
 pub const VARIABLE: &str = "\x1b[32m";
 
 pub const LINE: &str = "\x1b[32m";
-pub const COLUMN: &str = "\x1b[33m";

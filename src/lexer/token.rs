@@ -18,14 +18,10 @@ pub enum Token {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum TokenKeyword {
-    // Def,
     Elif,
     Else,
-    // For,
     Global,
     If,
-    // Loop,
-    // While,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -58,12 +54,6 @@ pub enum TokenPunctuation {
     Minus,
     /// \n
     Newline,
-    /// (
-    ParenOpen,
-    /// )
-    ParenClose,
-    /// #
-    Pound,
     /// /
     Slash,
     /// *

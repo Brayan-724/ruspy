@@ -8,9 +8,8 @@ pub mod utils;
 
 use std::collections::VecDeque;
 
-use ariadne::{Color, Fmt};
 use source::{LexerResult, SourceLexer, SourceLexerExt};
-use span::{IntoSpan, Span};
+use span::IntoSpan;
 use token::{SpannedToken, Token, TokenKeyword, TokenLiteral, TokenPunctuation};
 use utils::eat_spaces;
 use winnow::Parser;
@@ -60,7 +59,6 @@ impl Lexer {
             return Ok(true);
         }
 
-        // Eat the peeked char
         let (token, span) = alt([
             "!=".value(TokenPunctuation::BangEqual),
             "!".value(TokenPunctuation::Bang),
@@ -78,12 +76,7 @@ impl Lexer {
         .with_span()
         .map(IntoSpan::into_span)
         .parse_next(input)
-        .unwrap_or_else(|()| {
-            input.error(format!(
-                "Unexpected char: {}",
-                format!("{char:#?}").fg(Color::BrightRed)
-            ))
-        });
+        .unwrap_or_else(|()| input.error(format!("Unexpected char: {char:#?}",)));
 
         // Don't eat indentation
         if token != TokenPunctuation::Newline && token != TokenPunctuation::Indentation {

@@ -9,20 +9,11 @@ def "main run" [path: path] {
 }
 
 def "main lexer" [path: path] {
-  cargo run --bin inspect-lexer -- $path
+  cargo run --bin lexer -- $path
 }
 
 def "main ast" [path: path] {
-  cargo run --bin inspect-ast -- $path
+  cargo run --bin ast -- $path
 }
 
-def "main inspect" [path: path] {
-  cargo run --bin inspect -- $path
-}
-
-def "main to-js" [path: path] {
-  cargo run --bin to-js -- $path
-}
-
-def "main" [] {
-}
+def "main" [] { }
