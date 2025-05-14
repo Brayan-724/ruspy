@@ -161,7 +161,7 @@ impl Scope {
 
             ////// Multiplication //////
             (Mul, String(s), Bool(true)) | (Mul, Bool(true), String(s)) => String(s),
-            (Mul, String(_), Bool(false)) | (Mul, Bool(false), String(_)) => String(String::new()),
+            (Mul, String(_), Bool(false)) | (Mul, Bool(false), String(_)) => String(Default::default()),
             (Mul, Number(a), String(b)) => String(
                 a.is_positive()
                     .then(|| b.repeat(a.unsigned_abs() as usize))
