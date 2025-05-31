@@ -2,8 +2,6 @@ import {
   Layout,
   LayoutProps,
   Node,
-  Rect,
-  RectProps,
   signal,
   Txt,
 } from "@motion-canvas/2d";

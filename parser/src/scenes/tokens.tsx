@@ -14,27 +14,14 @@ import {
   beginSlide,
   fadeTransition,
   sequence,
-  waitFor,
 } from "@motion-canvas/core";
 import { TreeNode } from "ruspy-common/components";
 import { pyHighligther } from "ruspy-common/highlights";
 
+import { EXAMPLE_CODE, EXAMPLE_CODE_2 } from "../commons";
+
 import RustLangEsLogo from "../../../assets/Rust_Lang_ES_Logo.svg";
 import CrabsBack from "../../../assets/crabs-back.png";
-
-const EXAMPLE_CODE = `\
-if "Hi":
-  output = True
-else:
-  output = False\
-`;
-
-const EXAMPLE_CODE_2 = `\
-if "Hi":\
- output = True \
-else:\
- output = False\
-`;
 
 export default makeScene2D(function* (view) {
   view.add(<Rect width={1920} height={1080} fill="#2E2E2E" />);

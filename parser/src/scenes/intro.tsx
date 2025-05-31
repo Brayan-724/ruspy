@@ -14,6 +14,8 @@ export default makeScene2D(function* (view) {
   view.add(wave_in);
   view.add(logo);
 
+  yield logo;
+
   yield* sequence(
     0.4,
     logo.width(300, 2, easeOutBounce),

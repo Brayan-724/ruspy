@@ -1,10 +1,28 @@
 import { makeProject } from "@motion-canvas/core";
+import { Chapters } from "ruspy-common/components";
 
 import intro from "./scenes/intro?scene";
+import introParser from "./scenes/intro-parser?scene";
 import parser from "./scenes/parser?scene";
 import tokens from "./scenes/tokens?scene";
 import lexer from "./scenes/lexer?scene";
 
+Chapters.configure([
+  [
+    "Lexer",
+    "Structs",
+    "Implement"
+  ],
+  "Parser",
+  "Interpreter",
+]);
+
 export default makeProject({
-  scenes: [intro, parser, tokens, lexer],
+  scenes: [
+    intro,
+    introParser,
+    lexer,
+    tokens,
+    parser,
+  ],
 });
