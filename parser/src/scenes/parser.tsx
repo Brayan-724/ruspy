@@ -1,69 +1,56 @@
+import { makeScene2D, Txt } from "@motion-canvas/2d";
+import { all, waitFor } from "@motion-canvas/core";
+
 import {
+  Chapters,
   Code,
-  Img,
-  lines,
-  makeScene2D,
-  Rect,
-  saturate,
-  Txt,
-  word,
-} from "@motion-canvas/2d";
-import { all, beginSlide, DEFAULT, fadeTransition, waitFor } from "@motion-canvas/core";
-import { TreeGraph, TreeNode } from "ruspy-common/components";
-import { pyHighligther } from "ruspy-common/highlights";
+  CodeTokenizer,
+  SceneLayout,
+  Token,
+  TreeGraph,
+  TreeNode,
+} from "ruspy-common/components";
 
-import RustLangEsLogo from "../../../assets/Rust_Lang_ES_Logo.svg";
-import CrabsBack from "../../../assets/crabs-back.png";
-
-import "../fonts.css";
-
-const EXAMPLE_CODE = `\
-if "Hi":
-  output = True
-else:
-  output = False\
-`;
+import { EXAMPLE_CODE_2, EXAMPLE_CODE_TOKENS } from "../commons";
 
 export default makeScene2D(function* (view) {
-  view.add(<Rect width={1920} height={1080} fill="#2E2E2E" />);
+  let example_code: Code;
+  let tokens: Token[];
+  yield* SceneLayout.setup(view, function* () {
+    yield* Chapters.spotOne([1], 0);
 
-  view.add(
-    <Img
-      src={CrabsBack}
-      width={1920}
-      height={1080}
-      opacity={0.05}
-      filters={[saturate(0.3)]}
-    />,
-  );
-  view.add(<Img src={RustLangEsLogo} x={-850} y={450} width={150} />);
+    example_code = (
+      <Code
+        code={EXAMPLE_CODE_2}
+        letterSpacing={1}
+      />
+    ) as Code;
 
-  yield* fadeTransition(1);
+    example_code.cursorRect.opacity(0);
+    example_code.fill("#0000");
 
-  const example_code = (
-    <Code highlighter={pyHighligther} code={EXAMPLE_CODE} scale={0} />
-  ) as Code;
+    view.add(example_code);
 
-  view.add(example_code);
+    const tokenizer = new CodeTokenizer(example_code);
+    tokens = tokenizer.tokenize(EXAMPLE_CODE_TOKENS);
+    example_code.boxSelection([0, 0]);
+  });
 
-  yield* example_code.scale(1, 1);
-
-  yield* beginSlide("SHOW CODE");
+  yield* example_code.y(-400, 1);
 
   const graph = (
     <TreeGraph
-      x={200}
+      x={0}
       y={100}
       nodes={[
-        <TreeNode
-          y={-270}
-          child={<Txt.b fontFamily="Inter" text="Conditional" /> as Txt}
-        />,
+        tokens[0].container.clone({
+          x: 0,
+          y: -270,
+          offsetX: 0,
+        }),
 
-        <TreeNode
-          x={-400}
-          child={<Txt.b fontFamily="Inter" text='Literal("Hi")' /> as Txt}
-        />,
+        tokens[1].container.clone({ x: -400, y: 0, offsetX: 0 }),
+
         <TreeNode
           x={0}
           child={<Txt.b fontFamily="Inter" text="VarDecl" /> as Txt}
@@ -73,16 +60,8 @@ export default makeScene2D(function* (view) {
           child={<Txt.b fontFamily="Inter" text="VarDecl" /> as Txt}
         />,
 
-        <TreeNode
-          y={270}
-          x={-200}
-          child={<Txt.b fontFamily="Inter" text="output" /> as Txt}
-        />,
-        <TreeNode
-          y={270}
-          x={250}
-          child={<Txt.b fontFamily="Inter" text="Literal(True)" /> as Txt}
-        />,
+        tokens[3].container.clone({ x: -200, y: 270, offsetX: 0 }),
+        tokens[5].container.clone({ x: +250, y: 270, offsetX: 0 }),
       ]}
       joins={[
         [0, 1, "test"],
@@ -104,61 +83,73 @@ export default makeScene2D(function* (view) {
     node[3].opacity(0);
   }
 
-  yield* all(
-    example_code.position([-500, -300], 1),
-  );
+  const tokenizer = new CodeTokenizer(example_code);
+
+  const retreiveToken = function *(graphNode: number, token: number) {
+    const clone = graph.nodes()[graphNode].snapshotClone({
+      opacity: 1,
+      offsetX: -1,
+    });
+
+    view.add(clone);
+
+    clone.absolutePosition(tokens[token].container.absolutePosition);
+
+    yield* all(
+      clone.absolutePosition(graph.nodes()[graphNode].absolutePosition, 1),
+      clone.offset.x(0, 1),
+    );
+
+    clone.remove()
+  };
 
   yield* all(
+    retreiveToken(0, 0),
     graph.nodes()[0].opacity(1, 1),
     graph.highlightNode(0, 1),
-    example_code.selection(word(0, 0, 2), 1),
+    example_code.cursorRect.opacity(1, 0.25),
+    tokenizer.nextToken(1, [0, 2], false),
   );
-
-  yield* beginSlide("INSPECT [if]");
 
   yield* all(
+    retreiveToken(1, 1),
     graph.showJoin(0, 1),
-    example_code.selection(word(0, 3, 4), 1),
     graph.highlightJoin(0, 1),
+    tokenizer.nextToken(1, [1, 4], false),
   );
-
-  yield* beginSlide("INSPECT [Hi]");
 
   yield* all(
     graph.showJoin(1, 1),
     graph.highlightJoin(1, 1),
-    example_code.selection(lines(1), 1),
+    tokenizer.nextToken(1, [2, 13], false),
   );
 
-  yield* beginSlide("INSPECT [body]");
+  yield* all(
+    retreiveToken(4, 3),
+    graph.showJoin(3, 1),
+    graph.highlightJoin(3, 1),
+    tokenizer.nextToken(1, [-13, 6], false),
+  );
+
+  yield* all(
+    retreiveToken(5, 5),
+    graph.showJoin(4, 1),
+    graph.highlightJoin(4, 1),
+    tokenizer.nextToken(1, [3, 4], false),
+  );
+
+  yield* tokenizer.nextToken(1, [1, 4], false);
 
   yield* all(
     graph.showJoin(2, 1),
     graph.highlightJoin(2, 1),
-    example_code.selection(lines(3), 1),
+    tokenizer.nextToken(1, [2, 14], false),
   );
-
-  yield* beginSlide("INSPECT [otherwise]");
-
-  yield* all(
-    graph.showJoin(3, 1),
-    graph.highlightJoin(3, 1),
-    example_code.selection(word(1, 2, "output".length), 1),
-  );
-
-  yield* beginSlide("INSPECT [output]");
-
-  yield* all(
-    graph.showJoin(4, 1),
-    graph.highlightJoin(4, 1),
-    example_code.selection(word(1, 11, "True".length), 1),
-  );
-
-  yield* beginSlide("INSPECT [true]");
 
   yield* all(
     graph.unhighlight(1),
-    example_code.selection(DEFAULT, 1),
+    tokenizer.nextToken(1, [0, 0], false),
+    example_code.cursorRect.opacity(0, 0.75),
   );
 
   yield* waitFor(1);

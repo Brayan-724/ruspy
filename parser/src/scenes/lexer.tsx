@@ -56,4 +56,7 @@ export default makeScene2D(function* (view) {
   );
 
   yield* waitFor(1);
+
+  yield* Chapters.spotOne([0, 0], 1);
+  yield* Chapters.spotOne([1], 1);
 });

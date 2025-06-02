@@ -69,6 +69,7 @@ export class Code extends MotionCode {
         stroke="#FFF"
         lineWidth={3}
         radius={12}
+        zIndex={1}
       />
     ) as Rect;
 
@@ -122,7 +123,7 @@ export class Code extends MotionCode {
         height={bbox.height}
       >
         <Txt
-          y={-3}
+          y={-4}
           fill={CodeColors.text(background)}
           text={content}
           letterSpacing={() => this.letterSpacing()}
@@ -133,22 +134,24 @@ export class Code extends MotionCode {
     ) as Rect;
 
     this.add(highlight);
-    highlight.zIndex(0);
+
+    const token: Token = {
+      span: [bbox.start, bbox.end],
+      content,
+      container: highlight,
+    };
 
     function* t(): TokenGenerator<Token> {
-      if (duration) {
-        yield* highlight.end(1, duration);
-      } else {
-        highlight.end(1);
-      }
-      return {
-        span: [bbox.start, bbox.end],
-        content,
-        container: highlight,
-      };
+      yield* highlight.end(1, duration);
+      return token;
     }
 
-    return t();
+    if (duration) {
+      return t();
+    } else {
+      highlight.end(1);
+      return token;
+    }
   }
 }
 
@@ -252,11 +255,13 @@ export class CodeTokenizer {
   nextToken(
     duration: number,
     next: [number, number],
+    normalize?: boolean,
   ): ThreadGenerator;
 
   nextToken(
     durationOrNext: number | [number, number],
     maybeNext?: [number, number],
+    normalize: boolean = true,
   ) {
     const hasDuration = typeof durationOrNext === "number";
     const next = hasDuration ? maybeNext! : durationOrNext;
@@ -266,14 +271,22 @@ export class CodeTokenizer {
 
     if (hasDuration) {
       const duration = durationOrNext!;
-      return all(
-        this.parent.boxSelection.x(newStart, duration / 2),
-        this.parent.boxSelection.y(newStart, duration / 2),
-        waitFor(
-          duration / 2,
+
+      if (normalize) {
+        return all(
+          this.parent.boxSelection.x(newStart, duration / 2),
+          this.parent.boxSelection.y(newStart, duration / 2),
+          waitFor(
+            duration / 2,
+            this.parent.boxSelection.y(this.lastToken, duration),
+          ),
+        );
+      } else {
+        return all(
+          this.parent.boxSelection.x(newStart, duration),
           this.parent.boxSelection.y(this.lastToken, duration),
-        ),
-      );
+        );
+      }
     } else {
       this.parent.boxSelection([newStart, this.lastToken]);
     }

@@ -6,6 +6,7 @@ import {
   Vector2,
 } from "@motion-canvas/core";
 import { CustomBezier } from "./CustomBezier";
+import { CodeColors } from "./CodeColors";
 
 interface TreeNodeProps extends RectProps {
   child: Layout;
@@ -15,8 +16,10 @@ export class TreeNode extends Rect {
   constructor(props: TreeNodeProps) {
     super({
       radius: 12,
-      stroke: "#3E1C96",
-      lineWidth: 2,
+      // stroke: "#3E1C96",
+      // stroke: "#FFF",
+      stroke: CodeColors.WHITE,
+      lineWidth: 3,
       fill: "#FF8637",
       width: () => props.child.width() + 50,
       height: () => props.child.height() + 25,
@@ -35,7 +38,8 @@ export class TreeNode extends Rect {
 
     return (
       <CustomBezier
-        stroke="#3E1C96"
+        // stroke="#3E1C96"
+        stroke="#FFF"
         lineWidth={10}
         p0={p0}
         p1={p1}

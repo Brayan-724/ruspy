@@ -15,6 +15,7 @@ import {
 } from "@motion-canvas/core";
 
 import { CustomBezier } from "./CustomBezier";
+import { CodeColors } from "./CodeColors";
 
 export type TreeGraphJoin = [number, number] | [number, number, string] | [
   number,
@@ -70,7 +71,9 @@ export class TreeGraph extends Layout {
 
         const node = (
           <CustomBezier
-            stroke="#3E1C96"
+            // stroke="#3E1C96"
+            // stroke="#FFF"
+            stroke={CodeColors.WHITE}
             lineWidth={10}
             p0={p0}
             p1={p1}
@@ -90,6 +93,7 @@ export class TreeGraph extends Layout {
               text={content}
               fontFamily="Inter"
               fontSize={32}
+              fontWeight={700}
               fill="#FFF6ED"
             />
           );
