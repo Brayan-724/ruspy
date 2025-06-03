@@ -23,7 +23,7 @@
     "exporter": {
       "name": "@motion-canvas/ffmpeg",
       "options": {
-        "fastStart": true,
+        "fastStart": false,
         "includeAudio": true
       }
     }
