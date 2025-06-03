@@ -4,7 +4,6 @@ import {
   initial,
   Rect,
   resolveScope,
-  Txt,
   vector2Signal,
   word,
 } from "@motion-canvas/2d";
@@ -22,6 +21,7 @@ import {
 } from "@motion-canvas/core";
 
 import { CodeColors } from "./CodeColors";
+import { TokenBox } from "./Token";
 
 export interface SnapshotBBox {
   start: number;
@@ -110,28 +110,22 @@ export class Code extends MotionCode {
     );
 
     const highlight = (
-      <Rect
+      <TokenBox
+        color={background}
+        text={content}
         x={bbox.x}
         y={bbox.y}
         width={bbox.width}
         offsetX={-1}
-        fill={background}
-        stroke={CodeColors.WHITE}
         end={0}
-        lineWidth={3}
-        radius={12}
         height={bbox.height}
-      >
-        <Txt
-          y={-4}
-          fill={CodeColors.text(background)}
-          text={content}
-          letterSpacing={() => this.letterSpacing()}
-          fontSize={() => this.fontSize()}
-          fontFamily={() => this.fontFamily()}
-        />
-      </Rect>
-    ) as Rect;
+        textProps={{
+          letterSpacing: () => this.letterSpacing(),
+          fontSize: () => this.fontSize(),
+          fontFamily: () => this.fontFamily(),
+        }}
+      />
+    ) as TokenBox;
 
     this.add(highlight);
 
@@ -158,7 +152,7 @@ export class Code extends MotionCode {
 export interface Token {
   span: [number, number];
   content(): string;
-  container: Rect;
+  container: TokenBox;
 }
 
 export type InmediateToken = [

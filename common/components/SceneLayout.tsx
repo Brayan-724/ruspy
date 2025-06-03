@@ -16,7 +16,10 @@ import CrabsBack from "../../assets/crabs-back.png";
 import RustLangEsLogo from "../../assets/Rust_Lang_ES_Logo.svg";
 
 export class SceneLayout extends Layout {
-  static *setup(view: View2D, preShow: (view: View2D) => ThreadGenerator = function*() {}) {
+  static *setup(
+    view: View2D,
+    preShow: (view: View2D) => ThreadGenerator = function* () {},
+  ) {
     view.add(<SceneLayout />);
 
     Chapters.useView(view);
@@ -25,6 +28,8 @@ export class SceneLayout extends Layout {
 
     yield* fadeTransition(1);
   }
+
+  static logo: Img;
 
   constructor(props: LayoutProps) {
     super(props);
@@ -40,6 +45,16 @@ export class SceneLayout extends Layout {
         filters={[saturate(0.3)]}
       />,
     );
-    this.add(<Img src={RustLangEsLogo} x={-850} y={450} width={150} />);
+
+    SceneLayout.logo = (
+      <Img
+        src={RustLangEsLogo}
+        x={-850}
+        y={450}
+        width={150}
+      />
+    ) as Img;
+
+    this.add(SceneLayout.logo);
   }
 }

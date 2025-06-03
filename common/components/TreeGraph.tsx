@@ -1,10 +1,4 @@
-import {
-  Layout,
-  LayoutProps,
-  Node,
-  signal,
-  Txt,
-} from "@motion-canvas/2d";
+import { Layout, LayoutProps, Node, signal, Txt } from "@motion-canvas/2d";
 import {
   all,
   createEffect,
@@ -12,6 +6,7 @@ import {
   sequence,
   SignalValue,
   SimpleSignal,
+  ThreadGenerator,
 } from "@motion-canvas/core";
 
 import { CustomBezier } from "./CustomBezier";
@@ -142,11 +137,15 @@ export class TreeGraph extends Layout {
     yield* all(...actions);
   }
 
-  public *highlightJoin(idx: number, duration: number) {
+  public highlightJoin(idx: number, duration: number): ThreadGenerator {
+    return this.highlightJoins([idx], duration);
+  }
+
+  public *highlightJoins(idxs: number[], duration: number): ThreadGenerator {
     const actions = [];
 
     for (const [joinIdx, join] of this.joinNodes().entries()) {
-      if (joinIdx === idx) {
+      if (idxs.includes(joinIdx)) {
         continue;
       }
 
@@ -158,12 +157,14 @@ export class TreeGraph extends Layout {
       );
     }
 
-    actions.push(
-      this.joinNodes()[idx][0].opacity(1, duration),
-      this.joinNodes()[idx][1].opacity(1, duration),
-      this.joinNodes()[idx][2].opacity(1, duration),
-      this.joinNodes()[idx][3].opacity(1, duration),
-    );
+    for (const idx of idxs) {
+      actions.push(
+        this.joinNodes()[idx][0].opacity(1, duration),
+        this.joinNodes()[idx][1].opacity(1, duration),
+        this.joinNodes()[idx][2].opacity(1, duration),
+        this.joinNodes()[idx][3].opacity(1, duration),
+      );
+    }
 
     yield* all(...actions);
   }

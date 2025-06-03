@@ -39,40 +39,38 @@ export default makeScene2D(function* (view) {
   yield* example_code.y(-400, 1);
 
   const graph = (
-    <TreeGraph
-      x={0}
-      y={100}
-      nodes={[
-        tokens[0].container.clone({
-          x: 0,
-          y: -270,
-          offsetX: 0,
-        }),
+      <TreeGraph
+        y={100}
+        nodes={[
+          tokens[0].container.clone({
+            x: 0,
+            y: -270,
+            offsetX: 0,
+          }),
 
-        tokens[1].container.clone({ x: -400, y: 0, offsetX: 0 }),
+          tokens[1].container.clone({ x: -400, y: 0, offsetX: 0 }),
 
-        <TreeNode
-          x={0}
-          child={<Txt.b fontFamily="Inter" text="VarDecl" /> as Txt}
-        />,
-        <TreeNode
-          x={400}
-          child={<Txt.b fontFamily="Inter" text="VarDecl" /> as Txt}
-        />,
+          tokens[4].container.clone({ x: 0, offsetX: 0 }),
+          tokens[3].container.clone({ x: -100, y: 270, offsetX: 0 }),
+          tokens[5].container.clone({ x: +100, y: 270, offsetX: 0 }),
 
-        tokens[3].container.clone({ x: -200, y: 270, offsetX: 0 }),
-        tokens[5].container.clone({ x: +250, y: 270, offsetX: 0 }),
-      ]}
-      joins={[
-        [0, 1, "test"],
-        [0, 2, "body"],
-        [0, 3, "otherwise"],
+          tokens[4].container.clone({ x: 400, offsetX: 0 }),
+          tokens[8].container.clone({ x: 300, y: 270, offsetX: 0 }),
+          tokens[10].container.clone({ x: +500, y: 270, offsetX: 0 }),
+        ]}
+        joins={[
+          [0, 1, "test"],
 
-        [2, 4, "var"],
-        [2, 5, "expr"],
-      ]}
-    />
-  ) as TreeGraph;
+          [0, 2, "body"],
+          [2, 3, "var"],
+          [2, 4, "expr"],
+
+          [0, 5, "otherwise"],
+          [5, 6, "var"],
+          [5, 7, "expr"],
+        ]}
+      />
+    ) as TreeGraph;
 
   view.add(graph);
 
@@ -85,7 +83,7 @@ export default makeScene2D(function* (view) {
 
   const tokenizer = new CodeTokenizer(example_code);
 
-  const retreiveToken = function *(graphNode: number, token: number) {
+  const retreiveToken = function *(graphNode: number, token: number, duration = 1) {
     const clone = graph.nodes()[graphNode].snapshotClone({
       opacity: 1,
       offsetX: -1,
@@ -96,13 +94,14 @@ export default makeScene2D(function* (view) {
     clone.absolutePosition(tokens[token].container.absolutePosition);
 
     yield* all(
-      clone.absolutePosition(graph.nodes()[graphNode].absolutePosition, 1),
-      clone.offset.x(0, 1),
+      clone.absolutePosition(graph.nodes()[graphNode].absolutePosition, duration),
+      clone.offset.x(0, duration),
     );
 
     clone.remove()
   };
 
+  // [if]
   yield* all(
     retreiveToken(0, 0),
     graph.nodes()[0].opacity(1, 1),
@@ -111,6 +110,7 @@ export default makeScene2D(function* (view) {
     tokenizer.nextToken(1, [0, 2], false),
   );
 
+  // ["Hello"]
   yield* all(
     retreiveToken(1, 1),
     graph.showJoin(0, 1),
@@ -118,32 +118,53 @@ export default makeScene2D(function* (view) {
     tokenizer.nextToken(1, [1, 4], false),
   );
 
+  // VarDecl
   yield* all(
     graph.showJoin(1, 1),
     graph.highlightJoin(1, 1),
     tokenizer.nextToken(1, [2, 13], false),
   );
 
+  // [output]
   yield* all(
-    retreiveToken(4, 3),
-    graph.showJoin(3, 1),
-    graph.highlightJoin(3, 1),
+    retreiveToken(3, 3),
+    graph.showJoin(2, 1),
+    graph.highlightJoin(2, 1),
     tokenizer.nextToken(1, [-13, 6], false),
   );
 
+  // [True]
   yield* all(
-    retreiveToken(5, 5),
-    graph.showJoin(4, 1),
-    graph.highlightJoin(4, 1),
+    retreiveToken(4, 5),
+    graph.showJoin(3, 1),
+    graph.highlightJoin(3, 1),
     tokenizer.nextToken(1, [3, 4], false),
   );
 
+  // [else]
   yield* tokenizer.nextToken(1, [1, 4], false);
 
+  // VarDecl
   yield* all(
-    graph.showJoin(2, 1),
-    graph.highlightJoin(2, 1),
-    tokenizer.nextToken(1, [2, 14], false),
+    graph.showJoin(4, 0.5),
+    graph.highlightJoin(4, 0.5),
+    tokenizer.nextToken(0.5, [2, 14], false),
+  );
+
+  // [output]
+  yield* all(
+    retreiveToken(6, 8, 0.5),
+    graph.showJoin(5, 0.5),
+    graph.highlightJoin(5, 0.5),
+    tokenizer.nextToken(0.5, [-14, 6], false),
+  );
+
+  // [False]
+  yield* all(
+    retreiveToken(7, 10, 0.5),
+    graph.showJoin(6, 0.5),
+    graph.highlightJoin(6, 0.5),
+    tokenizer.nextToken(0.5, [3, 5], false),
   );
 
   yield* all(
@@ -153,4 +174,6 @@ export default makeScene2D(function* (view) {
   );
 
   yield* waitFor(1);
+
+  yield* Chapters.spotOne([2], 1);
 });

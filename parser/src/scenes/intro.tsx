@@ -1,5 +1,12 @@
 import { Circle, Img, makeScene2D, Rect } from "@motion-canvas/2d";
-import { all, beginSlide, easeOutBounce, sequence } from "@motion-canvas/core";
+import {
+  all,
+  beginSlide,
+  easeInCirc,
+  easeInQuad,
+  easeOutBounce,
+  sequence,
+} from "@motion-canvas/core";
 
 import RustLangEsLogo from "../../../assets/Rust_Lang_ES_Logo.svg";
 
@@ -22,7 +29,6 @@ export default makeScene2D(function* (view) {
     all(
       wave_out.width(2500, 2),
       wave_out.height(2500, 2),
-
       wave_in.width(2220, 2),
       wave_in.height(2220, 2),
     ),
