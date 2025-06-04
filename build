@@ -1,5 +1,9 @@
 #!/usr/bin/env nu
 
+def "main list" [] {
+  ls examples/ | get name | each {|p| bat -l python -f --style=full $p} | str join "\n"
+}
+
 def "main test" [test: string = ""] {
   cargo test --lib --verbose $test -- --nocapture --test-threads 1
 }
